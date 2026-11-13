@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville&family=Junge&family=Eagle+Lake&family=Courgette&family=Cormorant+Garamond:ital,wght@1,600&family=Rochester&family=Lobster+Two:ital,wght@1,700&family=Jim+Nightshade&family=Great+Vibes&family=Rouge+Script&family=Pinyon+Script&family=Macondo&family=Della+Respira&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Instrument+Serif:ital@1&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#f4f4ec;color:#1b1b1b;font-family:"Instrument Sans","Helvetica Neue",Helvetica,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#1b1b1b;text-decoration:none}a:hover{opacity:.6}
+*{box-sizing:border-box}
+button{font-family:inherit}
+</style>
+</helmet>
+<div ref="{{ stageRef }}" onPointerDown="{{ onDown }}" onWheel="{{ onWheel }}" style="position:fixed;inset:0;overflow:hidden;cursor:grab;touch-action:none;user-select:none;background:#f4f4ec">
+  <sc-for list="{{ tiles }}" as="t" hint-placeholder-count="0">
+    <div onClick="{{ t.open }}" onMouseEnter="{{ t.enter }}" onMouseLeave="{{ t.leave }}" style="position:absolute;left:0;top:0;width:{{ t.w }}px;height:{{ t.h }}px;transform:{{ t.transform }};opacity:{{ t.opacity }};transition:opacity .25s ease;will-change:transform;cursor:pointer">
+      <div style="width:100%;height:100%;transform:scale({{ t.pop }});transition:transform .22s cubic-bezier(.2,1.4,.4,1);pointer-events:none"><div style="width:100%;height:100%;background-image:{{ t.bg }};background-size:contain;background-repeat:no-repeat;background-position:center;filter:drop-shadow(5px 12px 10px rgba(40,32,20,.22));transition:transform .35s cubic-bezier(.2,.7,.2,1);pointer-events:none" style-hover="transform:scale(1.04)"></div></div>
+      <sc-if value="{{ t.hovered }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;left:-14px;top:58%;background:#1b1b1b;color:#fff;font-size:15px;padding:7px 11px;border-radius:3px;white-space:nowrap;pointer-events:none;display:flex;gap:6px;align-items:center"><span>+</span><span>vzor {{ t.vzor }}</span></div>
+      </sc-if>
+    </div>
+  </sc-for>
+</div>
+
+<header style="zoom:{{ navZoom }};position:fixed;top:0;left:0;right:0;height:68px;z-index:6;background:#f4f4ec;border-bottom:1px solid #e0e0d6;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:24px;padding:0 24px">
+  <a href="#" onClick="{{ goHome }}" style="font-size:24px;font-weight:600;letter-spacing:-.04em;line-height:1;white-space:nowrap;justify-self:start">domovní čísla</a>
+  <sc-if value="{{ wide }}" hint-placeholder-val="{{ true }}"><span style="font-size:16px;color:#55554b;letter-spacing:-.01em;white-space:nowrap">Vaše adresa, namalovaná štětcem.</span></sc-if>
+  <nav style="display:flex;justify-content:flex-end;align-items:center;gap:24px;font-size:15px;grid-column:3;white-space:nowrap;min-width:0">
+    <sc-if value="{{ wide }}" hint-placeholder-val="{{ true }}"><a href="#" onClick="{{ goOmne }}" style="padding:4px 0;border-bottom:1.5px solid {{ lineOmne }}">o mně</a></sc-if>
+    <sc-if value="{{ wide }}" hint-placeholder-val="{{ true }}"><a href="#" onClick="{{ goJak }}" style="padding:4px 0;border-bottom:1.5px solid {{ lineJak }}">jak objednat</a></sc-if>
+    <sc-if value="{{ wide }}" hint-placeholder-val="{{ true }}"><a href="#" onClick="{{ goKontakt }}" style="padding:4px 0;border-bottom:1.5px solid {{ lineKontakt }}">kontakt</a></sc-if>
+    <sc-if value="{{ notWide }}" hint-placeholder-val="{{ false }}"><button onClick="{{ toggleMenu }}" style="height:40px;display:flex;align-items:center;gap:8px;padding:0 4px;border:0;background:none;font-size:15px;color:#1b1b1b;cursor:pointer"><span>{{ menuLabel }}</span></button></sc-if>
+    <a href="#" onClick="{{ goObjednat }}" style="height:40px;display:flex;align-items:center;padding:0 16px;border-radius:4px;background:#1b1b1b;color:#fff;white-space:nowrap">objednat číslo</a>
+  </nav>
+</header>
+
+<sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="zoom:{{ navZoom }};position:fixed;top:68px;left:0;right:0;z-index:9;background:#f4f4ec;border-bottom:1px solid #e0e0d6;display:flex;flex-direction:column;padding:8px 24px 20px">
+    <a href="#" onClick="{{ goOmne }}" style="font-size:28px;letter-spacing:-.03em;padding:12px 0;border-bottom:1px solid #e0e0d6">o mně</a>
+    <a href="#" onClick="{{ goJak }}" style="font-size:28px;letter-spacing:-.03em;padding:12px 0;border-bottom:1px solid #e0e0d6">jak objednat</a>
+    <a href="#" onClick="{{ goKontakt }}" style="font-size:28px;letter-spacing:-.03em;padding:12px 0">kontakt</a>
+  </div>
+</sc-if>
+
+
+
+<sc-if value="{{ isGrid }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;top:{{ headerH }}px;bottom:{{ footerH }}px;left:0;right:0;overflow-y:auto;background:#f4f4ec;z-index:4;padding:48px 32px 120px">
+    <div style="display:grid;grid-template-columns:{{ gridCols }};gap:{{ gridGap }};max-width:1500px;margin:0 auto">
+      <sc-for list="{{ gridItems }}" as="g" hint-placeholder-count="0">
+        <button onClick="{{ g.open }}" style="border:0;background:none;padding:0;cursor:pointer;display:flex;flex-direction:column;gap:14px;text-align:left;font:inherit;color:#1b1b1b;opacity:{{ g.opacity }};transition:opacity .25s ease">
+          <div style="width:100%;aspect-ratio:1.25;background-image:{{ g.bg }};background-size:contain;background-repeat:no-repeat;background-position:center;filter:drop-shadow(5px 12px 10px rgba(40,32,20,.2));transition:transform .35s cubic-bezier(.2,.7,.2,1)" style-hover="transform:scale(1.04)"></div>
+          <div style="display:flex;justify-content:space-between;gap:8px;font-size:14px"><span style="font-weight:500">vzor {{ g.vzor }}</span><span style="color:#77776c">{{ g.tvar }} · {{ g.provedeni }}</span></div>
+        </button>
+      </sc-for>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ hasActive }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;left:50%;bottom:{{ chipsBottom }}px;transform:translateX(-50%);display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:calc(100vw - 48px);z-index:5">
+    <sc-for list="{{ activeChips }}" as="c" hint-placeholder-count="0">
+      <button onClick="{{ c.remove }}" style="height:38px;display:flex;align-items:center;gap:8px;padding:0 14px;border:1px solid #d6d6cc;background:#f4f4ec;border-radius:4px;font-size:14px;color:#1b1b1b;cursor:pointer">
+        <span>{{ c.label }}</span>
+        <sc-if value="{{ c.color }}" hint-placeholder-val="{{ false }}"><span style="width:12px;height:12px;border-radius:50%;background:{{ c.color }}"></span></sc-if>
+        <span style="font-size:12px">✕</span>
+      </button>
+    </sc-for>
+  </div>
+</sc-if>
+
+<footer style="zoom:{{ navZoom }};opacity:{{ navOpacity }};transform:translateY({{ navShift }}px);pointer-events:{{ navPE }};transition:opacity .5s ease,transform .5s cubic-bezier(.2,.7,.2,1);position:fixed;bottom:0;left:0;right:0;height:72px;z-index:6;background:#f4f4ec;border-top:1px solid #e0e0d6;display:flex;justify-content:space-between;align-items:center;gap:16px;padding:0 24px">
+  <div style="display:flex;border:1px solid #d6d6cc;border-radius:4px;overflow:hidden;width:max-content">
+    <button onClick="{{ setCanvas }}" style="height:42px;display:flex;align-items:center;gap:8px;padding:0 14px;border:0;font-size:15px;cursor:pointer;background:{{ canvasBg }};color:{{ canvasColor }}"><span style="font-size:13px">✣</span><sc-if value="{{ wide }}" hint-placeholder-val="{{ true }}"><span>plocha</span></sc-if></button>
+    <button onClick="{{ setGrid }}" style="height:42px;display:flex;align-items:center;gap:8px;padding:0 14px;border:0;font-size:15px;cursor:pointer;background:{{ gridBg }};color:{{ gridColor }}"><span style="font-size:13px">▦</span><sc-if value="{{ wide }}" hint-placeholder-val="{{ true }}"><span>mřížka</span></sc-if></button>
+  </div>
+  <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);max-width:{{ filterMax }};overflow-x:auto;scrollbar-width:thin;z-index:1"><div style="display:flex;gap:8px;align-items:center;width:max-content;margin:0 auto">
+    <sc-if value="{{ filterClosed }}" hint-placeholder-val="{{ true }}">
+      <button onClick="{{ openFilter }}" style="height:44px;display:flex;align-items:center;gap:8px;padding:0 16px;border:1px solid #d6d6cc;background:#f4f4ec;color:#1b1b1b;border-radius:4px;font-size:15px;cursor:pointer;white-space:nowrap">
+        <span style="display:flex;flex-direction:column;gap:5px;padding:0 2px">
+          <span style="width:16px;height:1.5px;background:#1b1b1b;position:relative"><span style="position:absolute;left:3px;top:-2.5px;width:6px;height:6px;border-radius:50%;background:#1b1b1b"></span></span>
+          <span style="width:16px;height:1.5px;background:#1b1b1b;position:relative"><span style="position:absolute;left:9px;top:-2.5px;width:6px;height:6px;border-radius:50%;background:#1b1b1b"></span></span>
+          <span style="width:16px;height:1.5px;background:#1b1b1b;position:relative"><span style="position:absolute;left:1px;top:-2.5px;width:6px;height:6px;border-radius:50%;background:#1b1b1b"></span></span>
+        </span>
+        <span>filtr</span>
+        <sc-if value="{{ hasActive }}" hint-placeholder-val="{{ false }}"><span style="font-size:12px;background:#1b1b1b;color:#fff;border-radius:999px;padding:2px 7px">{{ activeCount }}</span></sc-if>
+      </button>
+    </sc-if>
+    <sc-if value="{{ filterOpen }}" hint-placeholder-val="{{ false }}">
+      <button onClick="{{ closeFilter }}" style="width:44px;height:44px;flex:none;border-radius:50%;border:1px solid #d6d6cc;background:#f4f4ec;font-size:16px;color:#1b1b1b;cursor:pointer">✕</button>
+      <sc-for list="{{ sections }}" as="s" hint-placeholder-count="3">
+        <div style="height:44px;flex:none;display:flex;align-items:center;gap:10px;padding:0 6px 0 14px;border:1px solid #d6d6cc;background:#f4f4ec;border-radius:4px">
+          <button onClick="{{ s.toggle }}" style="border:0;background:none;padding:0 6px 0 0;font-size:15px;color:#1b1b1b;cursor:pointer;display:flex;gap:6px;align-items:center;height:100%;white-space:nowrap"><span>{{ s.label }}</span><span style="color:{{ s.signColor }}">{{ s.sign }}</span></button>
+          <sc-if value="{{ s.showSwatches }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;gap:6px;align-items:center;padding-right:6px">
+              <sc-for list="{{ s.opts }}" as="o" hint-placeholder-count="0">
+                <button onClick="{{ o.toggle }}" title="{{ o.label }}" style="width:24px;height:24px;border-radius:50%;border:0;padding:0;cursor:pointer;background:{{ o.color }};box-shadow:{{ o.ring }}"></button>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ s.showChips }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;gap:4px;align-items:center">
+              <sc-for list="{{ s.opts }}" as="o" hint-placeholder-count="0">
+                <button onClick="{{ o.toggle }}" style="height:32px;padding:0 12px;border-radius:999px;border:0;font-size:14px;cursor:pointer;white-space:nowrap;background:{{ o.chipBg }};color:{{ o.chipColor }}">{{ o.label }}</button>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </sc-for>
+      <button onClick="{{ clearFilters }}" style="height:44px;flex:none;padding:0 18px;border:0;border-radius:999px;background:#e5e5dc;font-size:15px;color:#1b1b1b;cursor:pointer;display:flex;gap:8px;align-items:center"><span>↺</span><span>reset</span></button>
+    </sc-if>
+  </div></div>
+  <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;visibility:{{ rightVis }}">
+    <sc-if value="{{ showHint }}" hint-placeholder-val="{{ true }}"><span style="font-size:15px;color:#55554b;margin-right:10px;white-space:nowrap">{{ hintText }}</span></sc-if>
+    <sc-if value="{{ showZoom }}" hint-placeholder-val="{{ true }}">
+      <button onClick="{{ zoomOut }}" style="width:44px;height:44px;border-radius:50%;border:1px solid #c9c9bf;background:#f4f4ec;font-size:21px;color:#1b1b1b;cursor:pointer;opacity:{{ outOpacity }}">−</button>
+      <button onClick="{{ zoomIn }}" style="width:44px;height:44px;border-radius:50%;border:1px solid #c9c9bf;background:#f4f4ec;font-size:21px;color:#1b1b1b;cursor:pointer;opacity:{{ inOpacity }}">+</button>
+    </sc-if>
+  </div>
+</footer>
+
+<sc-if value="{{ hasPage }}" hint-placeholder-val="{{ false }}">
+  <div ref="{{ pageRef }}" style="position:fixed;top:{{ headerH }}px;bottom:0;left:0;right:0;overflow-y:auto;background:#f4f4ec;z-index:8">
+    <div style="zoom:{{ pageZoom }};max-width:1120px;margin:0 auto;padding:56px 28px 96px;display:flex;flex-direction:column;gap:48px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:16px">
+        <span style="font-size:15px;color:#55554b">{{ pageKicker }}</span>
+        <button onClick="{{ goHome }}" style="height:40px;display:flex;align-items:center;gap:8px;padding:0 14px;border:1px solid #d6d6cc;border-radius:4px;background:#f4f4ec;font-size:15px;color:#1b1b1b;cursor:pointer"><span>←</span><span>zpět na čísla</span></button>
+      </div>
+
+      <sc-if value="{{ isOmne }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:48px">
+          <img src="assets/portret.png" alt="Portrét u dveří s malovanou cedulkou" style="width:100%;aspect-ratio:3/2;object-fit:cover;border-radius:4px;display:block">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px 56px;align-items:start">
+            <h1 style="margin:0;font-weight:500;font-size:clamp(40px,6vw,72px);letter-spacing:-.05em;line-height:.98;text-wrap:balance">Maluji čísla, která k domu patří.</h1>
+            <div style="display:flex;flex-direction:column;gap:24px;padding-top:8px">
+              <p style="margin:0;font-size:18px;line-height:1.6;color:#3a3a33;max-width:46ch;text-wrap:pretty">Každá cedulka vzniká ručně z keramické hlíny — tvaruji ji, maluji štětcem glazurami a vypaluji v peci. Inspiruji se tradičním malovaným písmem a ornamenty z fasád českých měst a vesnic.</p>
+              <p style="margin:0;font-size:18px;line-height:1.6;color:#3a3a33;max-width:46ch;text-wrap:pretty">Barvu, tvar i ornament ladím s domem — s fasádou, okny nebo dveřmi. Výsledkem je kus, který vydrží počasí i roky.</p>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;padding-top:32px;border-top:1px solid #e0e0d6">
+            <sc-for list="{{ omneWorks }}" as="w" hint-placeholder-count="3">
+              <button onClick="{{ w.open }}" style="border:0;padding:0;background:none;cursor:pointer;aspect-ratio:1.3;background-image:{{ w.bg }};background-size:contain;background-repeat:no-repeat;background-position:center;filter:drop-shadow(4px 10px 8px rgba(40,32,20,.2))"></button>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isJak }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:48px">
+          <h1 style="margin:0;font-weight:500;font-size:clamp(40px,6vw,72px);letter-spacing:-.05em;line-height:.98;max-width:14ch;text-wrap:balance">Od nápadu po cedulku na fasádě.</h1>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));border-top:1px solid #1b1b1b">
+            <div style="display:flex;flex-direction:column;gap:14px;padding:24px 24px 32px 0;border-bottom:1px solid #e0e0d6">
+              <div style="position:relative;aspect-ratio:4/3;border-radius:4px;background:#ebeae0;overflow:hidden">
+                <img src="assets/cisla/n37.webp" alt="" style="position:absolute;left:4%;top:30%;width:42%;transform:rotate(-12deg);filter:drop-shadow(0 6px 10px rgba(40,35,20,.18))"></img>
+                <img src="assets/cisla/n31.webp" alt="" style="position:absolute;right:3%;top:34%;width:40%;transform:rotate(9deg);filter:drop-shadow(0 6px 10px rgba(40,35,20,.18))"></img>
+                <img src="assets/cisla/n44.webp" alt="" style="position:absolute;left:22%;top:10%;width:56%;transform:rotate(-2deg);filter:drop-shadow(0 8px 14px rgba(40,35,20,.22))"></img>
+              </div>
+              <span style="align-self:flex-start;display:flex;align-items:center;justify-content:center;width:52px;height:38px;border-radius:50%;background:#fbf7ea;border:3px solid #3e5d9e;box-shadow:inset 0 0 0 2px #fbf7ea,inset 0 0 0 3px #3e5d9e;font-family:'Instrument Serif',serif;font-style:italic;font-size:22px;color:#1b1b1b">1</span>
+              <h3 style="margin:0;font-size:24px;font-weight:500;letter-spacing:-.03em">Vyberte vzor</h3>
+              <p style="margin:0;font-size:16px;line-height:1.55;color:#3a3a33;text-wrap:pretty">Inspirujte se v galerii, nebo mi popište vlastní představu — číslo, barvu, tvar.</p>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:14px;padding:24px 24px 32px 0;border-bottom:1px solid #e0e0d6">
+              <div style="position:relative;aspect-ratio:4/3;border-radius:4px;background-color:#f7f5ec;background-image:linear-gradient(#e4e2d6 1px,transparent 1px),linear-gradient(90deg,#e4e2d6 1px,transparent 1px);background-size:18px 18px;overflow:hidden">
+                <img src="assets/cisla/n24.webp" alt="" style="position:absolute;left:50%;top:50%;width:68%;transform:translate(-50%,-50%) rotate(-3deg);filter:grayscale(1) contrast(1.5) brightness(1.15);opacity:.7;mix-blend-mode:multiply"></img>
+              </div>
+              <span style="align-self:flex-start;display:flex;align-items:center;justify-content:center;width:52px;height:38px;border-radius:50%;background:#fbf7ea;border:3px solid #5e6d3d;box-shadow:inset 0 0 0 2px #fbf7ea,inset 0 0 0 3px #5e6d3d;font-family:'Instrument Serif',serif;font-style:italic;font-size:22px;color:#1b1b1b">2</span>
+              <h3 style="margin:0;font-size:24px;font-weight:500;letter-spacing:-.03em">Návrh a cena</h3>
+              <p style="margin:0;font-size:16px;line-height:1.55;color:#3a3a33;text-wrap:pretty">Do 3 pracovních dnů pošlu skicu a přesnou cenu. Upravujeme, dokud nesedí.</p>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:14px;padding:24px 24px 32px 0;border-bottom:1px solid #e0e0d6">
+              <div style="position:relative;aspect-ratio:4/3;border-radius:4px;background:#ebeae0;overflow:hidden">
+                <img src="assets/cisla/n13.webp" alt="" style="position:absolute;left:50%;top:50%;width:72%;transform:translate(-50%,-50%);filter:drop-shadow(0 8px 14px rgba(40,35,20,.2))"></img>
+                <img src="assets/cisla/n13.webp" alt="" style="position:absolute;left:50%;top:50%;width:72%;transform:translate(-50%,-50%);filter:grayscale(1) sepia(.5) contrast(.28) brightness(1.32);clip-path:inset(0 0 0 50%)"></img>
+                <span style="position:absolute;left:calc(50% - 2px);top:12%;bottom:12%;width:4px;background:#5e6d3d;border-radius:4px;opacity:.85"></span>
+                <span style="position:absolute;left:calc(50% - 9px);top:8%;width:18px;height:18px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:#5e6d3d"></span>
+              </div>
+              <span style="align-self:flex-start;display:flex;align-items:center;justify-content:center;width:52px;height:38px;border-radius:50%;background:#fbf7ea;border:3px solid #b5552f;box-shadow:inset 0 0 0 2px #fbf7ea,inset 0 0 0 3px #b5552f;font-family:'Instrument Serif',serif;font-style:italic;font-size:22px;color:#1b1b1b">3</span>
+              <h3 style="margin:0;font-size:24px;font-weight:500;letter-spacing:-.03em">Malování</h3>
+              <p style="margin:0;font-size:16px;line-height:1.55;color:#3a3a33;text-wrap:pretty">Po schválení cedulku vytvaruji z keramiky, ručně pomaluji a vypálím. Trvá to obvykle 2–3 týdny.</p>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:14px;padding:24px 24px 32px 0;border-bottom:1px solid #e0e0d6">
+              <div style="position:relative;aspect-ratio:4/3;border-radius:4px;background-color:#d8cfbd;background-image:radial-gradient(rgba(255,255,255,.18) 1px,transparent 1.5px),radial-gradient(rgba(60,45,25,.08) 1px,transparent 1.5px);background-size:7px 7px,11px 11px;background-position:0 0,3px 5px;overflow:hidden">
+                <img src="assets/cisla/n12.webp" alt="" style="position:absolute;left:50%;top:50%;width:64%;transform:translate(-50%,-50%);filter:drop-shadow(4px 10px 8px rgba(50,35,15,.35))"></img>
+              </div>
+              <span style="align-self:flex-start;display:flex;align-items:center;justify-content:center;width:52px;height:38px;border-radius:50%;background:#fbf7ea;border:3px solid #d9a63a;box-shadow:inset 0 0 0 2px #fbf7ea,inset 0 0 0 3px #d9a63a;font-family:'Instrument Serif',serif;font-style:italic;font-size:22px;color:#1b1b1b">4</span>
+              <h3 style="margin:0;font-size:24px;font-weight:500;letter-spacing:-.03em">Předání</h3>
+              <p style="margin:0;font-size:16px;line-height:1.55;color:#3a3a33;text-wrap:pretty">Cedulku pošlu bezpečně zabalenou i s kotvením, nebo si ji vyzvednete osobně.</p>
+            </div>
+          </div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+            <a href="#" onClick="{{ goObjednat }}" style="height:48px;display:flex;align-items:center;padding:0 22px;border-radius:4px;background:#1b1b1b;color:#fff;font-size:16px">začít objednávku</a>
+            <a href="#" onClick="{{ goGrid }}" style="height:48px;display:flex;align-items:center;padding:0 22px;border-radius:4px;border:1px solid #d6d6cc;font-size:16px">nejdřív vybrat vzor</a>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isKontakt }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:48px">
+          <h1 style="margin:0;font-weight:500;font-size:clamp(40px,6vw,72px);letter-spacing:-.05em;line-height:.98;max-width:14ch;text-wrap:balance">Napište mi, ráda poradím.</h1>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));border-top:1px solid #1b1b1b">
+            <div style="display:flex;flex-direction:column;gap:8px;padding:24px 24px 28px 0;border-bottom:1px solid #e0e0d6"><span style="font-size:15px;color:#77776c">e-mail</span><a href="mailto:ahoj@domovnicisla.cz" style="font-size:24px;letter-spacing:-.03em">ahoj@domovnicisla.cz</a></div>
+            <div style="display:flex;flex-direction:column;gap:8px;padding:24px 24px 28px 0;border-bottom:1px solid #e0e0d6"><span style="font-size:15px;color:#77776c">instagram</span><a href="#" style="font-size:24px;letter-spacing:-.03em">@domovni.cisla</a></div>
+            <div style="display:flex;flex-direction:column;gap:8px;padding:24px 24px 28px 0;border-bottom:1px solid #e0e0d6"><span style="font-size:15px;color:#77776c">odpovídám</span><span style="font-size:24px;letter-spacing:-.03em">do 3 pracovních dnů</span></div>
+          </div>
+          <p style="margin:0;font-size:18px;line-height:1.6;color:#3a3a33;max-width:52ch;text-wrap:pretty">Máte jasnou představu? Rovnou vyplňte objednávku — nic se neplatí, dokud neodsouhlasíte návrh.</p>
+          <div><a href="#" onClick="{{ goObjednat }}" style="height:48px;display:inline-flex;align-items:center;padding:0 22px;border-radius:4px;background:#1b1b1b;color:#fff;font-size:16px">objednat číslo</a></div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isObjednat }}" hint-placeholder-val="{{ false }}">
+        <sc-if value="{{ sent }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:24px;align-items:flex-start;padding:40px 0">
+            <h1 style="margin:0;font-weight:500;font-size:clamp(40px,6vw,72px);letter-spacing:-.05em;line-height:.98">Děkuji, poptávka dorazila.</h1>
+            <p style="margin:0;font-size:18px;line-height:1.6;color:#3a3a33;max-width:46ch;text-wrap:pretty">Do 3 pracovních dnů vám na {{ form.email }} pošlu návrh čísla {{ form.cislo }} a cenu.</p>
+            <div style="display:flex;gap:12px;flex-wrap:wrap">
+              <button onClick="{{ goHome }}" style="height:48px;padding:0 22px;border-radius:4px;border:0;background:#1b1b1b;color:#fff;font-size:16px;cursor:pointer">zpět na čísla</button>
+              <button onClick="{{ newOrder }}" style="height:48px;padding:0 22px;border-radius:4px;border:1px solid #d6d6cc;background:#f4f4ec;color:#1b1b1b;font-size:16px;cursor:pointer">další číslo</button>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ notSent }}" hint-placeholder-val="{{ true }}">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:56px;align-items:start">
+            <div style="display:flex;flex-direction:column;gap:28px">
+              <h1 style="margin:0;font-weight:500;font-size:clamp(40px,6vw,64px);letter-spacing:-.05em;line-height:.98">Vaše číslo</h1>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:6px;background:#e5e5dc">
+                <button onClick="{{ setModeVzor }}" style="height:56px;border:0;border-radius:4px;cursor:pointer;font:inherit;font-size:16px;background:{{ modeVzorBg }};color:#1b1b1b;box-shadow:{{ modeVzorSh }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px"><span style="font-weight:500">podle vzoru</span><span style="font-size:13px;color:#77776c">vyberu z galerie</span></button>
+                <button onClick="{{ setModeVlastni }}" style="height:56px;border:0;border-radius:4px;cursor:pointer;font:inherit;font-size:16px;background:{{ modeVlastniBg }};color:#1b1b1b;box-shadow:{{ modeVlastniSh }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px"><span style="font-weight:500">vlastní návrh</span><span style="font-size:13px;color:#77776c">sestavím si sám</span></button>
+              </div>
+              <sc-if value="{{ isVzor }}" hint-placeholder-val="{{ true }}">
+                <sc-if value="{{ hasRef }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;align-items:center;gap:14px;padding:10px 10px 10px 14px;border:1px solid #d6d6cc;border-radius:4px">
+                    <div style="width:56px;height:46px;flex:none;background-image:{{ refBg }};background-size:contain;background-repeat:no-repeat;background-position:center"></div>
+                    <span style="font-size:15px;flex:1">vzor {{ form.vzor }}</span>
+                    <button onClick="{{ clearRef }}" style="height:32px;padding:0 10px;border:0;background:none;font:inherit;font-size:14px;color:#55554b;cursor:pointer;text-decoration:underline">změnit</button>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ noRef }}" hint-placeholder-val="{{ true }}">
+                  <div style="display:flex;flex-direction:column;gap:10px">
+                    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px"><span style="font-size:14px;color:#55554b">vyberte vzor</span><a href="#" onClick="{{ goGrid }}" style="font-size:14px;text-decoration:underline">celá galerie →</a></div>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px;max-height:236px;overflow-y:auto;padding:2px">
+                      <sc-for list="{{ refPicks }}" as="r" hint-placeholder-count="12"><button onClick="{{ r.pick }}" title="vzor {{ r.vzor }}" style="aspect-ratio:1.25;border:1px solid #e0e0d6;border-radius:4px;padding:6px;cursor:pointer;background:#fbfbf6" style-hover="border-color:#1b1b1b"><div style="width:100%;height:100%;background-image:{{ r.bg }};background-size:contain;background-repeat:no-repeat;background-position:center"></div></button></sc-for>
+                    </div>
+                  </div>
+                </sc-if>
+              </sc-if>
+              <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:12px">
+                <label style="display:flex;flex-direction:column;gap:8px;font-size:14px;color:#55554b"><span>číslo *</span><input value="{{ form.cislo }}" onChange="{{ onCislo }}" placeholder="32" style="width:100%;height:48px;padding:0 14px;border:1px solid {{ errCislo }};border-radius:4px;background:#fbfbf6;font:inherit;font-size:16px;color:#1b1b1b;outline:none"></label>
+                <label style="display:flex;flex-direction:column;gap:8px;font-size:14px;color:#55554b"><span>ulice (nepovinné)</span><input value="{{ form.ulice }}" onChange="{{ onUlice }}" placeholder="Lipová" style="width:100%;height:48px;padding:0 14px;border:1px solid #d6d6cc;border-radius:4px;background:#fbfbf6;font:inherit;font-size:16px;color:#1b1b1b;outline:none"></label>
+              </div>
+              <sc-if value="{{ isVlastni }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;gap:10px"><span style="font-size:14px;color:#55554b">zkratka před číslem</span><div style="display:flex;gap:6px;flex-wrap:wrap"><sc-for list="{{ fPrefix }}" as="o" hint-placeholder-count="6"><button onClick="{{ o.pick }}" style="height:36px;padding:0 14px;border-radius:999px;border:0;font-size:14px;cursor:pointer;background:{{ o.bg }};color:{{ o.fg }}">{{ o.label }}</button></sc-for></div></div>
+              <div style="display:flex;flex-direction:column;gap:10px"><span style="font-size:14px;color:#55554b">rozvržení nápisu</span><div style="display:flex;gap:6px;flex-wrap:wrap"><sc-for list="{{ fRozvrzeni }}" as="o" hint-placeholder-count="4"><button onClick="{{ o.pick }}" style="height:36px;padding:0 14px;border-radius:999px;border:0;font-size:14px;cursor:pointer;background:{{ o.bg }};color:{{ o.fg }}">{{ o.label }}</button></sc-for></div><div style="display:flex;gap:6px;flex-wrap:wrap"><sc-for list="{{ fOblouk }}" as="o" hint-placeholder-count="2"><button onClick="{{ o.pick }}" style="height:36px;padding:0 14px;border-radius:999px;border:0;font-size:14px;cursor:pointer;background:{{ o.bg }};color:{{ o.fg }}">{{ o.label }}</button></sc-for></div></div>
+              <sc-if value="{{ showHorni }}" hint-placeholder-val="{{ false }}"><label style="display:flex;flex-direction:column;gap:8px;font-size:14px;color:#55554b"><span>horní nápis</span><input value="{{ form.horni }}" onChange="{{ onHorni }}" placeholder="Novákovi" style="width:100%;height:48px;padding:0 14px;border:1px solid #d6d6cc;border-radius:4px;background:#fbfbf6;font:inherit;font-size:16px;color:#1b1b1b;outline:none"></label></sc-if>
+              <div style="display:flex;flex-direction:column;gap:10px"><div style="display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap"><span style="font-size:14px;color:#55554b">písmo čísla · vzor {{ cStyle.id }}</span><sc-if value="{{ cStyle.hasNote }}" hint-placeholder-val="{{ false }}"><span style="font-size:13px;color:#b5552f">{{ cStyle.note }}</span></sc-if></div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:6px;max-height:256px;overflow-y:auto;padding:2px">
+                  <sc-for list="{{ fCisla }}" as="o" hint-placeholder-count="12"><button onClick="{{ o.pick }}" style="height:78px;border:1px solid {{ o.border }};border-radius:4px;background:{{ o.bg }};cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:6px 10px 10px;color:#1b1b1b;overflow:hidden;min-width:0"><span style="font-size:11px;color:#77776c">{{ o.id }}</span><span style="display:flex;align-items:flex-end;gap:1px;height:32px;max-width:100%;overflow:hidden"><sc-for list="{{ o.glyphs }}" as="g" hint-placeholder-count="2"><sc-if value="{{ g.isImg }}" hint-placeholder-val="{{ true }}"><span style="flex:none;width:{{ g.w }};height:{{ g.h }};background:#1b1b1b;-webkit-mask:{{ g.mask }};mask:{{ g.mask }}"></span></sc-if><sc-if value="{{ g.isTxt }}" hint-placeholder-val="{{ false }}"><span style="flex:none;font-family:'Libre Baskerville',serif;font-size:{{ g.fs }};line-height:1">{{ g.ch }}</span></sc-if></sc-for></span></button></sc-for>
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:10px"><div style="display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap"><span style="font-size:14px;color:#55554b">písmo nápisu · vzor {{ pStyle.id }}</span><span style="font-size:13px;color:#77776c">ulice, jméno domu</span></div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;max-height:232px;overflow-y:auto;padding:2px">
+                  <sc-for list="{{ fPisma }}" as="o" hint-placeholder-count="12"><button onClick="{{ o.pick }}" style="height:64px;border:1px solid {{ o.border }};border-radius:4px;background:{{ o.bg }};cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:6px 10px 8px;color:#1b1b1b;overflow:hidden;min-width:0"><span style="font-size:11px;color:#77776c">{{ o.id }}</span><span style="width:100%;height:30px;background:#1b1b1b;-webkit-mask:{{ o.mask }};mask:{{ o.mask }}"></span></button></sc-for>
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:12px"><span style="font-size:14px;color:#55554b">barvy glazury</span>
+                <div style="display:flex;gap:4px;padding:3px;border-radius:999px;background:#e5e5dc;align-self:flex-start;flex-wrap:wrap">
+                  <sc-for list="{{ cTargets }}" as="t" hint-placeholder-count="3"><button onClick="{{ t.pick }}" style="height:34px;padding:0 14px 0 10px;border:0;border-radius:999px;font-size:14px;cursor:pointer;background:{{ t.bg }};box-shadow:{{ t.sh }};color:#1b1b1b;display:flex;align-items:center;gap:8px"><span style="width:14px;height:14px;border-radius:50%;background:{{ t.color }}"></span><span>{{ t.label }}</span></button></sc-for>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px;max-width:400px">
+                  <sc-for list="{{ fPaint }}" as="o" hint-placeholder-count="24"><button onClick="{{ o.pick }}" title="{{ o.label }}" style="aspect-ratio:1;border:0;padding:0;border-radius:4px;cursor:pointer;background:{{ o.color }};box-shadow:{{ o.ring }}"></button></sc-for>
+                </div>
+                <span style="font-size:14px;color:#1b1b1b">{{ cTargetLabel }}: {{ cTargetName }}</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:10px"><span style="font-size:14px;color:#55554b">tvar</span>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  <sc-for list="{{ fTvary }}" as="o" hint-placeholder-count="6"><button onClick="{{ o.pick }}" style="height:36px;padding:0 14px;border-radius:999px;border:0;font-size:14px;cursor:pointer;background:{{ o.bg }};color:{{ o.fg }}">{{ o.label }}</button></sc-for>
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:10px"><span style="font-size:14px;color:#55554b">provedení</span>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  <sc-for list="{{ fProvedeni }}" as="o" hint-placeholder-count="2"><button onClick="{{ o.pick }}" style="height:36px;padding:0 14px;border-radius:999px;border:0;font-size:14px;cursor:pointer;background:{{ o.bg }};color:{{ o.fg }}">{{ o.label }}</button></sc-for>
+                </div>
+              </div>
+              </sc-if>
+              <label style="display:flex;flex-direction:column;gap:8px;font-size:14px;color:#55554b"><span>vaše představa a poznámky</span><span style="font-size:15px;color:#3a3a33;line-height:1.5;text-wrap:pretty">{{ noteHelp }}</span><textarea value="{{ form.pozn }}" onChange="{{ onPozn }}" rows="5" placeholder="{{ notePh }}" style="width:100%;padding:12px 14px;border:1px solid #d6d6cc;border-radius:4px;background:#fbfbf6;font:inherit;font-size:16px;line-height:1.5;color:#1b1b1b;outline:none;resize:vertical"></textarea></label>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;padding-top:12px;border-top:1px solid #e0e0d6">
+                <label style="display:flex;flex-direction:column;gap:8px;font-size:14px;color:#55554b"><span>jméno</span><input value="{{ form.jmeno }}" onChange="{{ onJmeno }}" style="width:100%;height:48px;padding:0 14px;border:1px solid #d6d6cc;border-radius:4px;background:#fbfbf6;font:inherit;font-size:16px;color:#1b1b1b;outline:none"></label>
+                <label style="display:flex;flex-direction:column;gap:8px;font-size:14px;color:#55554b"><span>e-mail *</span><input type="email" value="{{ form.email }}" onChange="{{ onEmail }}" style="width:100%;height:48px;padding:0 14px;border:1px solid {{ errEmail }};border-radius:4px;background:#fbfbf6;font:inherit;font-size:16px;color:#1b1b1b;outline:none"></label>
+              </div>
+              <sc-if value="{{ hasErr }}" hint-placeholder-val="{{ false }}"><span style="font-size:14px;color:#b5552f">Vyplňte prosím číslo a platný e-mail.</span></sc-if>
+              <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+                <button onClick="{{ submit }}" style="height:50px;padding:0 24px;border-radius:4px;border:0;background:#1b1b1b;color:#fff;font-size:16px;cursor:pointer">odeslat poptávku</button>
+                <span style="font-size:14px;color:#77776c">nezávazné — platíte až po schválení návrhu</span>
+              </div>
+            </div>
+            <div style="position:sticky;top:24px;display:flex;flex-direction:column;gap:16px;align-items:center;padding:48px 24px;border-radius:4px;background:#ebebe2">
+              <sc-if value="{{ isVlastni }}" hint-placeholder-val="{{ false }}">
+              <div style="width:min(320px,100%);aspect-ratio:{{ plate.aspect }};border-radius:{{ plate.radius }};clip-path:{{ plate.clip }};background:{{ plate.bg }};background-size:100% 100%;box-shadow:{{ plate.shadow }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10%;overflow:hidden;position:relative;transition:all .35s cubic-bezier(.2,.7,.2,1)">
+                <sc-for list="{{ plate.arc }}" as="c" hint-placeholder-count="0"><span style="position:absolute;left:{{ c.l }};top:{{ c.tp }};transform:translate(-50%,-50%) rotate({{ c.r }});font-family:{{ plate.pff }};font-weight:{{ plate.pfw }};font-style:{{ plate.pfs }};text-transform:{{ plate.ptt }};font-variant:{{ plate.pfv }};color:{{ plate.sfg }};font-size:{{ c.fs }};line-height:1;white-space:pre;filter:{{ plate.tshadow }}">{{ c.ch }}</span></sc-for>
+                <sc-if value="{{ plate.topStraight }}" hint-placeholder-val="{{ false }}"><span style="font-family:{{ plate.pff }};font-weight:{{ plate.pfw }};font-style:{{ plate.pfs }};letter-spacing:{{ plate.pls }};text-transform:{{ plate.ptt }};font-variant:{{ plate.pfv }};color:{{ plate.sfg }};line-height:1.1;white-space:nowrap;font-size:{{ plate.tsize }}">{{ plate.topText }}</span></sc-if>
+                <sc-if value="{{ plate.preAbove }}" hint-placeholder-val="{{ false }}"><span style="font-family:{{ plate.pff }};font-weight:{{ plate.pfw }};font-style:{{ plate.pfs }};color:{{ plate.fg }};line-height:1;font-size:{{ plate.preS }};margin-bottom:-2px">{{ plate.preTxt }}</span></sc-if>
+                <span style="display:flex;align-items:flex-end;justify-content:center;gap:2px;max-width:100%;filter:{{ plate.tshadow }}"><sc-if value="{{ plate.preCp }}" hint-placeholder-val="{{ false }}"><span style="flex:none;align-self:center;margin-right:6px;font-family:{{ plate.pff }};font-weight:{{ plate.pfw }};font-style:{{ plate.pfs }};color:{{ plate.fg }};line-height:1;font-size:{{ plate.preS }}">č.p.</span></sc-if><sc-if value="{{ plate.preCis }}" hint-placeholder-val="{{ false }}"><span style="flex:none;position:relative;margin-right:4px;font-family:{{ plate.pff }};font-weight:{{ plate.pfw }};font-style:{{ plate.pfs }};color:{{ plate.fg }};line-height:1;font-size:{{ plate.preL }}">Č<span style="position:absolute;left:38%;top:44%;font-size:.36em;line-height:1">ís.</span></span></sc-if><sc-if value="{{ plate.preNo }}" hint-placeholder-val="{{ false }}"><span style="flex:none;display:flex;align-items:flex-start;margin-right:6px;font-family:{{ plate.pff }};font-weight:{{ plate.pfw }};font-style:{{ plate.pfs }};color:{{ plate.fg }};line-height:1;font-size:{{ plate.preL }}">N<span style="font-size:.4em;line-height:1;margin:.12em 0 0 .06em;padding-bottom:.06em;border-bottom:.12em solid currentColor">o</span></span></sc-if><sc-for list="{{ plate.glyphs }}" as="g" hint-placeholder-count="2"><sc-if value="{{ g.isImg }}" hint-placeholder-val="{{ true }}"><span style="flex:none;width:{{ g.w }};height:{{ g.h }};background:{{ plate.fg }};-webkit-mask:{{ g.mask }};mask:{{ g.mask }}"></span></sc-if><sc-if value="{{ g.isTxt }}" hint-placeholder-val="{{ false }}"><span style="flex:none;font-family:'Libre Baskerville',serif;font-size:{{ g.fs }};line-height:1;color:{{ plate.fg }}">{{ g.ch }}</span></sc-if></sc-for></span>
+                <sc-if value="{{ plate.botStraight }}" hint-placeholder-val="{{ false }}"><span style="font-family:{{ plate.pff }};font-weight:{{ plate.pfw }};font-style:{{ plate.pfs }};letter-spacing:{{ plate.pls }};text-transform:{{ plate.ptt }};font-variant:{{ plate.pfv }};color:{{ plate.sfg }};line-height:1.1;white-space:nowrap;font-size:{{ plate.ssize }}">{{ plate.botText }}</span></sc-if>
+              </div>
+              <span style="font-size:14px;color:#55554b;text-align:center;text-wrap:balance">náhled · číslo {{ cStyle.id }} · nápis {{ pStyle.id }} · nápis v náhledu orientačně, namaluji ho ve stylu vzoru · {{ form.tvar }} · {{ form.provedeni }}</span>
+              </sc-if>
+              <sc-if value="{{ isVzor }}" hint-placeholder-val="{{ true }}">
+                <sc-if value="{{ hasRef }}" hint-placeholder-val="{{ false }}">
+                  <div style="width:min(340px,100%);aspect-ratio:1.3;background-image:{{ refBg }};background-size:contain;background-repeat:no-repeat;background-position:center;filter:drop-shadow(6px 14px 12px rgba(40,32,20,.22))"></div>
+                  <span style="font-size:14px;color:#55554b;text-align:center">vzor {{ form.vzor }} · namaluji s vaším číslem {{ plate.text }}</span>
+                </sc-if>
+                <sc-if value="{{ noRef }}" hint-placeholder-val="{{ true }}">
+                  <div style="width:min(300px,100%);aspect-ratio:1.4;border:1.5px dashed #c9c9bd;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;color:#77776c;text-align:center;padding:24px">zde se ukáže vybraný vzor</div>
+                </sc-if>
+              </sc-if>
+            </div>
+          </div>
+        </sc-if>
+      </sc-if>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ hasSel }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ close }}" style="position:fixed;inset:0;background:rgba(244,244,236,.94);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:32px;z-index:10">
+    <div onClick="{{ stop }}" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:48px;align-items:center;max-width:960px;width:100%">
+      <div style="aspect-ratio:1.2;background-image:{{ sel.bg }};background-size:contain;background-repeat:no-repeat;background-position:center;filter:drop-shadow(8px 18px 16px rgba(40,32,20,.25))"></div>
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <span style="font-size:15px;color:#5c5c52">vzor {{ sel.vzor }} · {{ sel.tvar }} · {{ sel.provedeni }}</span>
+        <h2 style="margin:0;font-weight:500;font-size:56px;letter-spacing:-.045em;line-height:1">Číslo {{ sel.label }}</h2>
+        <p style="margin:0;font-size:16px;line-height:1.55;color:#3a3a33;max-width:38ch;text-wrap:pretty">Každá cedulka je malovaná ručně štětcem. Číslo, ulici, barvu i ornament přizpůsobím vašemu domu.</p>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+          <a href="#" onClick="{{ orderLike }}" style="height:46px;display:flex;align-items:center;padding:0 20px;border-radius:4px;background:#1b1b1b;color:#fff;font-size:16px">chci podobné</a>
+          <button onClick="{{ close }}" style="height:46px;padding:0 20px;border-radius:4px;border:1px solid #d6d6cc;background:#f4f4ec;font-size:16px;color:#1b1b1b;cursor:pointer">zpět</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const DATA = "1|864|plochý|cihlová|ovál;4|178|plochý|modrá|ovál;5|260|plochý|modrá|ovál;6|85|plastický|cihlová|obdélník;7|8|plochý|zelená|ovál;9|14|plastický|hnědá|obdélník;10|220|plastický|hnědá|obdélník;11|175|plastický|modrá|seříznuté rohy;12|39|plochý|cihlová|ovál;13|29|plochý|zelená|ovál;14|126|plochý|zelená|ovál;15|7481|plochý|žlutá|ovál;18|133|plastický|modrá|seříznuté rohy;19|384|plochý|cihlová|ovál;20|70|plastický|černá|obdélník;22|80|plastický|černá|seříznuté rohy;23|28|plastický|zelená|obdélník;24|58|plochý|modrá|ovál;30|234|plastický|hnědá|oblouk;31|17|plastický|žlutá|šestiúhelník;32|16|plastický|žlutá|šestiúhelník;33|104/6|plastický|zelená|seříznuté rohy;34|7|plochý|modrá|ovál;35|77|plochý|hnědá|ovál;36|189/III|plochý|modrá|obdélník;37|99|plastický|modrá|kruh;38|30|plochý|zelená|ovál;39|751|plastický|cihlová|seříznuté rohy;40|1011|plastický|hnědá|oblouk;42|70|plastický|modrá|seříznuté rohy;43|88|plastický|hnědá|seříznuté rohy;44|255|plochý|modrá|ovál;45|97|plastický|žlutá|obdélník;46|45|plochý|hnědá|ovál;47|1028|plochý|hnědá|ovál;48|44|plochý|hnědá|ovál;49|35|plochý|zelená|ovál;50|203|plastický|cihlová|seříznuté rohy;51|2|plochý|zelená|ovál;52|79|plastický|modrá|seříznuté rohy";
+const COLORS = { modrá:'#3e5d9e', zelená:'#5e6d3d', cihlová:'#b5552f', černá:'#262422', hnědá:'#6e4b2f', žlutá:'#d9a63a' };
+const TVARY = ['ovál','kruh','obdélník','seříznuté rohy','oblouk','šestiúhelník'], PROVEDENI = ['plastický','plochý'];
+const ITEMS = DATA.split(';').map((s, i) => {
+  const [v, n, p, b, tvar] = s.split('|');
+  return { vzor: 'V' + (i + 1), label: n, src: 'assets/cisla/n' + v + '.webp', provedeni: p, barva: b, tvar };
+});
+const ZOOMS = [0.55, 0.9, 1.45];
+const F = (id, ff, fw, fs, ls, sh, note, cs) => ({ id, ff, fw: fw || 400, fs: fs || 'normal', ls: ls || '0', sh: sh || 'none', note: note || '', tt: cs === 'uppercase' ? 'uppercase' : 'none', fv: cs === 'small-caps' ? 'small-caps' : 'normal' });
+const CISLA = [
+  F('C1', "'Alegreya',serif", 500, 'italic'), F('C2', "'Almendra',serif", 700), F('C3', "'IM Fell English',serif"), F('C4', "'Playfair Display',serif", 700, 0, '.14em'),
+  F('C5', "'Abril Fatface',serif"), F('C6', "'Libre Baskerville',serif"), F('C7', "'Jost',sans-serif"), F('C8', "'IM Fell DW Pica',serif", 400, 0, '.02em', '2px 2px 0 rgba(0,0,0,.28)'),
+  F('C9', "'Courgette',cursive", 400, 0, '.12em'), F('C10', "'Cormorant Garamond',serif", 500, 'italic', '.1em'), F('C11', "'Josefin Sans',sans-serif", 300, 'italic'),
+  F('C12', "'UnifrakturMaguntia',serif"),
+];
+const GLYPH = {"C1":{"0":0.624,"1":0.517,"2":0.646,"3":0.638,"4":0.669,"5":0.638,"6":0.621,"7":0.646,"8":0.624,"9":0.626},"C2":{"0":0.665,"1":0.383,"2":0.689,"3":0.721,"4":0.689,"5":0.673,"6":0.686,"7":0.665,"8":0.641,"9":0.684},"C3":{"0":0.57,"1":0.396,"2":0.575,"3":0.55,"4":0.577,"5":0.55,"6":0.575,"7":0.557,"8":0.567,"9":0.572},"C4":{"0":0.655,"1":0.595,"2":0.586,"3":0.646,"4":0.643,"5":0.616,"6":0.619,"7":0.562,"8":0.655,"9":0.625},"C5":{"0":0.678,"1":0.486,"2":0.726,"3":0.685,"4":0.781,"5":0.658,"6":0.651,"7":0.623,"8":0.678,"9":0.651},"C6":{"0":0.583,"1":0.382,"2":0.54,"3":0.549,"4":0.59,"5":0.57,"6":0.553,"7":0.553,"8":0.583,"9":0.546},"C7":{"0":0.726,"1":0.333,"2":0.583,"3":0.726,"4":0.738,"5":0.702,"6":0.714,"7":0.661,"8":0.661,"9":0.708},"C8":{"0":0.673,"1":0.497,"2":0.642,"3":0.624,"4":0.661,"5":0.636,"6":0.648,"7":0.576,"8":0.679,"9":0.648},"C9":{"0":0.81,"1":0.514,"2":0.785,"3":0.785,"4":0.927,"5":0.793,"6":0.766,"7":0.682,"8":0.818,"9":0.791},"C10":{"0":0.641,"1":0.571,"2":0.755,"3":0.716,"4":0.694,"5":0.724,"6":0.652,"7":0.638,"8":0.721,"9":0.652},"C11":{"0":0.656,"1":0.611,"2":0.67,"3":0.648,"4":0.652,"5":0.733,"6":0.663,"7":0.615,"8":0.604,"9":0.689},"C12":{"0":0.584,"1":0.399,"2":0.519,"3":0.531,"4":0.784,"5":0.512,"6":0.546,"7":0.567,"8":0.582,"9":0.577}};
+const glyphs = (txt, style, hpx) => [...txt].map(ch => { const ar = GLYPH[style] && GLYPH[style][ch];
+  return ar ? { isImg: true, isTxt: false, w: (hpx * ar).toFixed(1) + 'px', h: hpx + 'px', mask: 'url("assets/vzorniky/' + style + '/' + ch + '.png") center/100% 100% no-repeat' }
+    : { isImg: false, isTxt: true, ch, fs: Math.round(hpx * 0.8) + 'px' }; });
+const PISMA = [
+  F('P1', "'Junge',serif"), F('P2', "'Eagle Lake',serif", 400, 0, '.05em'), F('P3', "'Courgette',cursive", 400, 0, '.04em'), F('P4', "'Cormorant Garamond',serif", 600, 'italic', '.06em'),
+  F('P5', "'Rochester',cursive", 400, 0, '.04em'), F('P6', "'Lobster Two',cursive", 700, 'italic'), F('P8', "'Jim Nightshade',cursive"), F('P9', "'Great Vibes',cursive"),
+  F('P10', "'Rouge Script',cursive", 400, 0, '.04em'), F('P13', "'Pinyon Script',cursive"), F('P14', "'Eagle Lake',serif", 400, 0, '.04em', 0, 0, 'small-caps'), F('P15', "'Della Respira',serif", 400, 0, '.02em', 0, 0, 'small-caps'),
+];
+const PAINT = { 'žlutá světlá':'#ecd36a', 'žlutá tmavá':'#e6a923', 'oranžová':'#e98a3c', 'červená':'#d8262b', 'vínová':'#a3283a', 'růžová tmavá':'#d76a73', 'cihlová':'#c06e66', 'lososová':'#efb1a4',
+  'modrá světlá':'#6f9ad8', 'modrá střední':'#5a6eb6', 'modrá tmavá':'#1f3f7a', 'modrá tyrkys':'#2fa6cb', 'zeleno modrá':'#1f8a94', 'zelená akvarel':'#3f6236', 'zelená tmavá':'#24432e', 'zelená střední':'#4f6446',
+  'šedá':'#50555c', 'černá':'#26272a', 'hnědo černá':'#3a2a24', 'hnědá tmavá':'#4e2f1f', 'hnědá světlá':'#c47a3a', 'béžová':'#d8b17a', 'fialová':'#c79bc6', 'zelená světlá':'#a6b63c' };
+const TARGETS = [['cislo', 'číslo', 'barvaC'], ['napis', 'nápis', 'barvaN'], ['okraj', 'okraj', 'barvaO']];
+const EMPTY_FORM = { cislo: '', ulice: '', barva: 'modrá', tvar: 'ovál', provedeni: 'plochý', jmeno: '', email: '', pozn: '', vzor: null, src: null, mode: 'vzor', pismoC: 'C1', pismoP: 'P15', barvaC: 'modrá tmavá', barvaN: 'modrá tmavá', barvaO: 'modrá tmavá', prefix: 'bez', rozvrzeni: 'nápis pod', oblouk: 'rovně', horni: '' };
+const PREFIXY = ['bez', 'č.p.', 'Čís.', '№', 'ev.č.', 'číslo'], ROZVRZENI = ['jen číslo', 'nápis pod', 'nápis nad', 'nad i pod'], OBLOUK = ['rovně', 'do oblouku'];
+const _mc = typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null;
+const measureCh = (ch, font, fs) => { if (!_mc) return fs * .52; _mc.font = font; return _mc.measureText(ch).width; };
+const arcText = (text, fs, ls, W, H, top, oval, font, upper) => { const ins = 22 + fs * .55; let a, b, cy;
+  if (oval) { a = W / 2 - ins; b = H / 2 - ins; cy = H / 2; } else { a = W * .75; b = H * .55; cy = top ? ins + b : H - ins - b; }
+  const chars = [...text], ws = chars.map(ch => measureCh(upper ? ch.toUpperCase() : ch, font, fs) + ls), total = ws.reduce((s, w) => s + w, 0), sp = t => Math.hypot(a * Math.sin(t), b * Math.cos(t));
+  const step = (t0, d, dir) => { let t = t0, s = 0; while (s < d) { s += sp(t) * .002; t += .002 * dir; } return t; };
+  const dir = top ? 1 : -1; let t = step(top ? -Math.PI / 2 : Math.PI / 2, total / 2, -dir);
+  return chars.map((ch, i) => { const adv = ws[i], m = step(t, adv / 2, dir), x = W / 2 + a * Math.cos(m), y = cy + b * Math.sin(m), dx = dir * -a * Math.sin(m), dy = dir * b * Math.cos(m); t = step(t, adv, dir);
+    return { ch, fs: fs + 'px', l: (x / W * 100).toFixed(2) + '%', tp: (y / H * 100).toFixed(2) + '%', r: (Math.atan2(dy, dx) * 180 / Math.PI).toFixed(1) + 'deg' }; }); };
+const SHAPES = { 'ovál': { aspect: '1.4', radius: '50%', clip: 'none' }, 'kruh': { aspect: '1', radius: '50%', clip: 'none' }, 'obdélník': { aspect: '1.4', radius: '6px', clip: 'none' }, 'seříznuté rohy': { aspect: '1.4', radius: '0', poly: (W, H) => { const c = H * .14; return [[c, 0], [W - c, 0], [W, c], [W, H - c], [W - c, H], [c, H], [0, H - c], [0, c]]; }, clip: 'polygon(10% 0,90% 0,100% 14%,100% 86%,90% 100%,10% 100%,0 86%,0 14%)' }, 'oblouk': { aspect: '1.1', radius: '50% 50% 6px 6px / 42% 42% 6px 6px', clip: 'none' }, 'šestiúhelník': { aspect: '1.1547', radius: '0', poly: (W, H) => [[W / 4, 0], [W * 3 / 4, 0], [W, H / 2], [W * 3 / 4, H], [W / 4, H], [0, H / 2]], clip: 'polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%)' } };
+const insetPoly = (p, d) => { const n = p.length, L = []; for (let i = 0; i < n; i++) { const [x1, y1] = p[i], [x2, y2] = p[(i + 1) % n], dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy), nx = -dy / len, ny = dx / len; L.push([x1 + nx * d, y1 + ny * d, dx, dy]); } return L.map((a, i) => { const b = L[(i + n - 1) % n], den = b[2] * a[3] - b[3] * a[2], s = ((a[0] - b[0]) * a[3] - (a[1] - b[1]) * a[2]) / den; return [b[0] + b[2] * s, b[1] + b[3] * s]; }); };
+const polySvg = (sh, ring, plast) => { const W = 320, H = W / parseFloat(sh.aspect), P = sh.poly(W, H), pts = d => insetPoly(P, d).map(q => q[0].toFixed(2) + ',' + q[1].toFixed(2)).join(' ');
+  const g = plast ? '<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#3c2814" stop-opacity=".16"/></linearGradient></defs>' : '';
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + ' ' + H.toFixed(2) + '" preserveAspectRatio="none">' + g + '<polygon points="' + pts(0) + '" fill="' + ring + '"/><polygon points="' + pts(9) + '" fill="#f6f1e2"/><polygon points="' + pts(13) + '" fill="' + ring + '"/><polygon points="' + pts(15) + '" fill="#f6f1e2"/>' + (plast ? '<polygon points="' + pts(15) + '" fill="url(#g)"/>' : '') + '</svg>';
+  return 'url("data:image/svg+xml,' + encodeURIComponent(svg) + '")'; };
+const STEPS = [
+  { n: '01', title: 'Vyberte vzor', text: 'Inspirujte se v galerii, nebo mi popište vlastní představu — číslo, barvu, tvar.' },
+  { n: '02', title: 'Návrh a cena', text: 'Do 3 pracovních dnů pošlu skicu a přesnou cenu. Upravujeme, dokud nesedí.' },
+  { n: '03', title: 'Malování', text: 'Po schválení cedulku vytvaruji z keramiky, ručně pomaluji a vypálím. Trvá to obvykle 2–3 týdny.' },
+  { n: '04', title: 'Předání', text: 'Cedulku pošlu bezpečně zabalenou i s kotvením, nebo si ji vyzvednete osobně.' },
+];
+const mod = (a, n) => ((a % n) + n) % n;
+const rng = seed => () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+
+class Component extends DCLogic {
+  state = { ox: 0, oy: 0, zi: 1, z: 0.68, vw: 1280, vh: 800, sel: null, hover: -1, f: { barva: [], tvar: [], provedeni: [] }, filterOpen: false, section: 'barva', menuOpen: false, fade: false, intro: 'gone', view: 'canvas', shown: 0, navOn: false, popDone: false, page: null, sent: false, err: false, form: { ...EMPTY_FORM }, cTarget: 'cislo' };
+  pageRef = React.createRef();
+  go(page, extra) { if (this.pageRef.current) this.pageRef.current.scrollTop = 0; this.setState({ page, sel: null, menuOpen: false, ...(extra || {}) }); }
+  stageRef = React.createRef();
+  componentDidMount() {
+    this.onResize = () => { const el = this.stageRef.current; this.setState({ vw: (el && el.clientWidth) || innerWidth || 1280, vh: (el && el.clientHeight) || innerHeight || 800 }); };
+    this.onResize();
+    this.center = () => {
+      if (this.drag || this.moved) return;
+      const el = this.stageRef.current, vw = (el && el.clientWidth) || innerWidth, vh = (el && el.clientHeight) || innerHeight;
+      this.setState({ vw, vh }, () => {
+        const s = this.layout().slots.find(q => q.item.src.endsWith('/n32.webp'));
+        if (s) this.setState(st => ({ ox: vw / 2 - (s.x + s.w / 2) * st.z, oy: vh / 2 - (s.y + s.h / 2) * st.z }));
+      });
+    };
+    this.c1 = setTimeout(this.center, 0); this.c2 = setTimeout(this.center, 250);
+    addEventListener('resize', this.onResize);
+    if (window.ResizeObserver && this.stageRef.current) { this.ro = new ResizeObserver(this.onResize); this.ro.observe(this.stageRef.current); }
+    this.onMove = e => {
+      if (!this.drag) return;
+      const dx = e.clientX - this.drag.x, dy = e.clientY - this.drag.y;
+      this.drag.x = e.clientX; this.drag.y = e.clientY; this.drag.dist += Math.abs(dx) + Math.abs(dy);
+      const now = performance.now(), dt = Math.max(1, now - this.drag.t); this.drag.t = now;
+      this.vx = dx / dt * 16; this.vy = dy / dt * 16;
+      this.setState(s => ({ ox: s.ox + dx, oy: s.oy + dy }));
+    };
+    this.onUp = () => {
+      if (!this.drag) return;
+      this.moved = this.drag.dist > 6; this.drag = null;
+      if (this.stageRef.current) this.stageRef.current.style.cursor = 'grab';
+      this.glide();
+    };
+    addEventListener('pointermove', this.onMove);
+    addEventListener('pointerup', this.onUp);
+    this.onKey = e => { if (e.key === 'Escape') this.setState(s => s.sel || s.menuOpen ? { sel: null, menuOpen: false } : { page: null }); };
+    addEventListener('keydown', this.onKey);
+    this.iv = setInterval(() => {
+      const n = this.visCount || 0;
+      if (n && this.state.shown >= n) { clearInterval(this.iv); this.t1 = setTimeout(() => { this.setState({ popDone: true }); this.animate({ z: ZOOMS[1] }); this.t2 = setTimeout(() => this.setState({ navOn: true }), 600); }, 350); return; }
+      this.setState(s => ({ shown: s.shown + 3 }));
+    }, 30);
+  }
+  componentWillUnmount() {
+    removeEventListener('resize', this.onResize); if (this.ro) this.ro.disconnect();
+    removeEventListener('pointermove', this.onMove); removeEventListener('pointerup', this.onUp); removeEventListener('keydown', this.onKey);
+    cancelAnimationFrame(this.raf); clearTimeout(this.ft); clearInterval(this.iv); clearTimeout(this.t1); clearTimeout(this.t2); clearTimeout(this.c1); clearTimeout(this.c2);
+  }
+  glide() {
+    cancelAnimationFrame(this.raf);
+    const step = () => {
+      this.vx *= 0.94; this.vy *= 0.94;
+      if (Math.abs(this.vx) < 0.1 && Math.abs(this.vy) < 0.1) return;
+      this.setState(s => ({ ox: s.ox + this.vx, oy: s.oy + this.vy }));
+      this.raf = requestAnimationFrame(step);
+    };
+    this.raf = requestAnimationFrame(step);
+  }
+  animate(to) {
+    cancelAnimationFrame(this.raf);
+    const { ox, oy, z, vw, vh } = this.state, t0 = performance.now();
+    const cx = vw / 2, cy = vh / 2, wx = (cx - ox) / z, wy = (cy - oy) / z;
+    const step = now => {
+      const p = Math.min(1, (now - t0) / 650), e = 1 - Math.pow(1 - p, 3);
+      const nz = z + (to.z - z) * e;
+      const next = to.center
+        ? { z: nz, ox: ox + (to.ox - ox) * e, oy: oy + (to.oy - oy) * e }
+        : { z: nz, ox: cx - wx * nz, oy: cy - wy * nz };
+      this.setState(next);
+      if (p < 1) this.raf = requestAnimationFrame(step);
+    };
+    this.raf = requestAnimationFrame(step);
+  }
+  setZoom(zi) {
+    zi = Math.max(0, Math.min(2, zi));
+    if (zi === this.state.zi) return;
+    this.setState({ zi }); this.animate({ z: ZOOMS[zi] });
+  }
+  filtered() {
+    const { f } = this.state;
+    return ITEMS.filter(it => (!f.barva.length || f.barva.includes(it.barva)) && (!f.tvar.length || f.tvar.includes(it.tvar)) && (!f.provedeni.length || f.provedeni.includes(it.provedeni)));
+  }
+  layout() {
+    const { vw, vh, f } = this.state;
+    const key = vw + 'x' + vh + JSON.stringify(f);
+    if (this._lk === key) return this._l;
+    const items = this.filtered(), r = rng(11), S = 320, zmin = ZOOMS[0];
+    const NC = Math.max(8, Math.ceil(vw / (S * zmin)) + 2);
+        const order = [];
+    if (items.length) { const a = items.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } order.push(...a); }
+    const R = 300, NR = Math.max(4, Math.ceil(vh / (R * zmin)) + 2);
+    const slots = []; let k = 0;
+    const active = f.barva.length || f.tvar.length || f.provedeni.length;
+    if (active && order.length) {
+      const n = order.length, cols = Math.max(1, Math.ceil(Math.sqrt(n * 1.5)));
+      order.forEach((item, i) => {
+        const c = i % cols, r0 = Math.floor(i / cols), w = 120 + r() * 130, h = w * 0.8;
+        const cx = c * S + S / 2 + (r0 % 2) * S / 3, cy = r0 * R + R / 2 + (c % 2) * R / 3;
+        slots.push({ x: cx - w / 2, y: cy - h / 2, w, h, item });
+      });
+      const x0 = Math.min(...slots.map(s => s.x)), x1 = Math.max(...slots.map(s => s.x + s.w)), y0 = Math.min(...slots.map(s => s.y)), y1 = Math.max(...slots.map(s => s.y + s.h));
+      this._lk = key; this._l = { slots, W: 1, H: 1, finite: true, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2 };
+      return this._l;
+    }
+    if (order.length) for (let r0 = 0; r0 < NR; r0++) for (let c = 0; c < NC; c++) {
+      const w = 120 + r() * 130, h = w * 0.8;
+      const cx = c * S + S / 2, cy = r0 * R + R / 2 + (c % 2) * R / 2;
+      slots.push({ x: cx - w / 2, y: cy - h / 2, w, h, item: order[k++ % order.length] });
+    }
+    const H2 = NR * R;
+    this._lk = key; this._l = { slots, W: NC * S, H: H2 };
+    return this._l;
+  }
+  applyFilter(fn) {
+    clearTimeout(this.ft);
+    this.setState({ fade: true });
+    this.ft = setTimeout(() => this.setState(s => ({ f: fn(s.f), fade: false }), () => {
+      const L = this.layout();
+      if (L.finite) { cancelAnimationFrame(this.raf); this.setState(st => ({ ox: st.vw / 2 - L.cx * st.z, oy: st.vh / 2 - L.cy * st.z })); }
+    }), 200);
+  }
+  toggleOpt(group, val) {
+    this.applyFilter(f => { const cur = f[group]; return { ...f, [group]: cur.includes(val) ? cur.filter(x => x !== val) : [...cur, val] }; });
+  }
+  renderVals() {
+    const { ox, oy, z, zi, vw, vh, sel, hover, f, filterOpen, section, menuOpen, fade } = this.state;
+    const { slots, W, H, finite } = this.layout();
+    const Wz = W * z, Hz = H * z, m = 280 * z, tiles = [], shown = this.state.shown;
+    slots.forEach((s, i) => {
+      const w = s.w * z, h = s.h * z;
+      const x = finite ? s.x * z + ox : mod(s.x * z + ox + m, Wz) - m, y = finite ? s.y * z + oy : mod(s.y * z + oy + m, Hz) - m;
+      tiles.push({
+        _i: i, w, h, transform: `translate3d(${x}px,${y}px,0)`, bg: `url("${s.item.src}")`, opacity: fade ? 0 : 1,
+        vzor: s.item.vzor, hovered: hover === i,
+        enter: () => { if (!this.drag) this.setState({ hover: i }); },
+        leave: () => this.setState(st => st.hover === i ? { hover: -1 } : null),
+        open: () => { if (!this.moved) this.setState({ sel: s.item, hover: -1 }); },
+      });
+    });
+    const hs = n => (Math.imul(n + 1, 2654435761) >>> 0) % 100003;
+    const ord = tiles.map(t => t._i).sort((a, b) => hs(a) - hs(b));
+    this.visCount = tiles.length;
+    tiles.forEach(t => { const on = this.state.popDone || ord.indexOf(t._i) < shown; t.opacity = on ? t.opacity : 0; t.pop = on ? 1 : 0.5; });
+    const navOn = this.state.navOn;
+    const narrow = vw < 900;
+    const navZoom = vw < 700 ? 1 : Math.min(2.4, Math.max(1.2, vw / 1500));
+    const activeChips = [
+      ...f.barva.map(v => ({ label: v, color: COLORS[v], remove: () => this.toggleOpt('barva', v) })),
+      ...f.tvar.map(v => ({ label: v, color: null, remove: () => this.toggleOpt('tvar', v) })),
+      ...f.provedeni.map(v => ({ label: v, color: null, remove: () => this.toggleOpt('provedeni', v) })),
+    ];
+    const mk = (group, label, opts, swatch) => {
+      const open = section === group;
+      return {
+        label, sign: open ? '|' : '+', signColor: open ? '#b0b0a6' : '#1b1b1b',
+        showSwatches: open && swatch, showChips: open && !swatch,
+        toggle: () => this.setState({ section: open ? null : group }),
+        opts: opts.map(v => {
+          const on = f[group].includes(v);
+          return { label: v, color: COLORS[v] || null, toggle: () => this.toggleOpt(group, v),
+            ring: on ? 'inset 0 0 0 7px ' + COLORS[v] + ', inset 0 0 0 13px #fff' : 'none',
+            chipBg: on ? '#1b1b1b' : '#e5e5dc', chipColor: on ? '#fff' : '#1b1b1b' };
+        }),
+      };
+    };
+    const crowded = narrow || filterOpen;
+    const barBottom = 24, zoomBottom = crowded ? 'auto' : '0px', zoomTop = crowded ? '0px' : 'auto', zoomRadius = crowded ? '0 0 0 22px' : '22px 0 0 0';
+    const chipsRow = activeChips.length ? 54 : 0;
+    const { page, form, sent, err } = this.state;
+    const nav = p => e => { if (e) e.preventDefault(); this.go(p); };
+    const setF = k => e => { const v = e.target.value; this.setState(s => ({ form: { ...s.form, [k]: v } })); };
+    const pickF = (k, v) => () => this.setState(s => ({ form: { ...s.form, [k]: v } }));
+    const sh = SHAPES[form.tvar] || SHAPES['ovál'], plast = form.provedeni === 'plastický', txt = form.cislo.trim() || '32';
+    const okCislo = !!form.cislo.trim(), okEmail = /.+@.+\..+/.test(form.email);
+    const kickers = { omne: 'o mně', jak: 'jak objednat', kontakt: 'kontakt', objednat: 'objednávka' };
+    const pick = ['V38', 'V27', 'V13'].map(v => ITEMS.find(it => it.vzor === v)).filter(Boolean);
+    const wideNow = Math.min(vw, innerWidth || vw) >= 1200;
+    const cS = CISLA.find(c => c.id === form.pismoC) || CISLA[0], pS = PISMA.find(c => c.id === form.pismoP) || PISMA[0];
+    const tgt = TARGETS.find(t => t[0] === this.state.cTarget) || TARGETS[0];
+    const selB = on => ({ border: on ? '#1b1b1b' : '#e0e0d6', bg: on ? '#fff' : '#fbfbf6' });
+    const pColO = PAINT[form.barvaO], streetTxt = form.ulice.trim();
+    const roz = form.rozvrzeni || 'nápis pod', curved = form.oblouk === 'do oblouku', pre = form.prefix || 'bez';
+    const topTxt = roz === 'nad i pod' ? (form.horni || '').trim() : roz === 'nápis nad' ? streetTxt : '', botTxt = roz === 'nápis pod' || roz === 'nad i pod' ? streetTxt : '';
+    const preAbove = pre === 'ev.č.' || pre === 'číslo', preInline = pre === 'č.p.' || pre === 'Čís.' || pre === '№';
+    const hp = Math.round((txt.length > 5 ? 40 : txt.length > 3 ? 54 : 78) * (topTxt && botTxt ? .8 : 1) * (preAbove ? .86 : 1) * (preInline && txt.length > 2 ? .82 : 1));
+    const tsz = s => s.length > 16 ? 18 : s.length > 10 ? 22 : 28, PW = 320, PH = PW / parseFloat(sh.aspect), oval = form.tvar === 'ovál' || form.tvar === 'kruh';
+    const lsOf = fs => (parseFloat(pS.ls) || 0) * fs, chipF = (k, cur) => v => ({ label: v, pick: pickF(k, v), bg: cur === v ? '#1b1b1b' : '#e5e5dc', fg: cur === v ? '#fff' : '#1b1b1b' });
+    const pFont = fs => (pS.fs || 'normal') + ' ' + (pS.fv === 'small-caps' ? 'small-caps' : 'normal') + ' ' + (pS.fw || 400) + ' ' + fs + 'px ' + pS.ff, up = pS.tt === 'uppercase';
+    const arc = curved ? [...(topTxt ? arcText(topTxt, tsz(topTxt), lsOf(tsz(topTxt)), PW, PH, true, oval, pFont(tsz(topTxt)), up) : []), ...(botTxt ? arcText(botTxt, tsz(botTxt), lsOf(tsz(botTxt)), PW, PH, false, oval, pFont(tsz(botTxt)), up) : [])] : [];
+    return {
+      pageRef: this.pageRef, hasPage: !!page, pageKicker: kickers[page] || '', pageZoom: navZoom > 1 ? Math.max(1, navZoom * 0.8) : 1,
+      isOmne: page === 'omne', isJak: page === 'jak', isKontakt: page === 'kontakt', isObjednat: page === 'objednat',
+      lineOmne: page === 'omne' ? '#1b1b1b' : 'transparent', lineJak: page === 'jak' ? '#1b1b1b' : 'transparent', lineKontakt: page === 'kontakt' ? '#1b1b1b' : 'transparent',
+      goHome: e => { if (e) e.preventDefault(); this.setState({ page: null, sel: null, menuOpen: false }); },
+      goGrid: e => { if (e) e.preventDefault(); this.setState({ page: null, sel: null, menuOpen: false, view: 'grid', intro: 'gone' }); },
+      goOmne: nav('omne'), goJak: nav('jak'), goKontakt: nav('kontakt'),
+      goObjednat: e => { if (e) e.preventDefault(); this.go('objednat', this.state.sent ? { sent: false, err: false, form: { ...EMPTY_FORM } } : null); },
+      orderLike: e => { e.preventDefault(); const s = this.state.sel; this.go('objednat', { sent: false, err: false, form: { ...EMPTY_FORM, cislo: s.label, barva: s.barva, tvar: s.tvar, provedeni: s.provedeni, vzor: s.vzor, src: s.src, mode: 'vzor' } }); },
+      notWide: !wideNow, menuLabel: menuOpen ? 'zavřít' : 'menu',
+      omneWorks: pick.map(it => ({ bg: 'url("' + it.src + '")', open: () => this.setState({ sel: it }) })),
+      steps: STEPS,
+      form, sent, notSent: !sent, hasErr: err, hasRef: !!form.vzor, refBg: form.src ? 'url("' + form.src + '")' : 'none',
+      isVzor: form.mode !== 'vlastni', isVlastni: form.mode === 'vlastni', noRef: !form.vzor,
+      setModeVzor: () => this.setState(s => ({ form: { ...s.form, mode: 'vzor' } })), setModeVlastni: () => this.setState(s => ({ form: { ...s.form, mode: 'vlastni' } })),
+      modeVzorBg: form.mode !== 'vlastni' ? '#fbfbf6' : 'transparent', modeVzorSh: form.mode !== 'vlastni' ? '0 1px 2px rgba(0,0,0,.08)' : 'none',
+      modeVlastniBg: form.mode === 'vlastni' ? '#fbfbf6' : 'transparent', modeVlastniSh: form.mode === 'vlastni' ? '0 1px 2px rgba(0,0,0,.08)' : 'none',
+      refPicks: ITEMS.map(it => ({ vzor: it.vzor, bg: 'url("' + it.src + '")', pick: () => this.setState(s => ({ form: { ...s.form, vzor: it.vzor, src: it.src, barva: it.barva, tvar: it.tvar, provedeni: it.provedeni } })) })),
+      noteHelp: form.mode === 'vlastni' ? 'Popište, jak si cedulku představujete — ornament, písmo, styl domu. Ráda všechno vyslechnu.' : 'Chcete na vzoru něco změnit? Jinou barvu, kytičky, jméno domu… Ráda všechno vyslechnu.',
+      notePh: form.mode === 'vlastni' ? 'např. modré kytičky po obvodu, psací písmo, dům je bílý se zelenými okenicemi…' : 'např. stejný vzor, ale v modré a s nápisem „U Nováků“…',
+      clearRef: () => this.setState(s => ({ form: { ...s.form, vzor: null, src: null } })),
+      errCislo: err && !okCislo ? '#b5552f' : '#d6d6cc', errEmail: err && !okEmail ? '#b5552f' : '#d6d6cc',
+      onCislo: setF('cislo'), onUlice: setF('ulice'), onJmeno: setF('jmeno'), onEmail: setF('email'), onPozn: setF('pozn'),
+      fBarvy: Object.keys(COLORS).map(v => ({ label: v, color: COLORS[v], pick: pickF('barva', v), ring: form.barva === v ? '0 0 0 3px #f4f4ec, 0 0 0 4.5px #1b1b1b' : 'none' })),
+      fTvary: TVARY.map(v => ({ label: v, pick: pickF('tvar', v), bg: form.tvar === v ? '#1b1b1b' : '#e5e5dc', fg: form.tvar === v ? '#fff' : '#1b1b1b' })),
+      fProvedeni: PROVEDENI.map(v => ({ label: v, pick: pickF('provedeni', v), bg: form.provedeni === v ? '#1b1b1b' : '#e5e5dc', fg: form.provedeni === v ? '#fff' : '#1b1b1b' })),
+      cStyle: { ...cS, hasNote: !!cS.note }, pStyle: pS,
+      fCisla: CISLA.map(c => ({ ...c, glyphs: glyphs(txt, c.id, 30), pick: pickF('pismoC', c.id), ...selB(c.id === cS.id) })),
+      fPisma: PISMA.map(c => ({ ...c, mask: 'url("assets/vzorniky/pisma/' + c.id + '.png") left center/contain no-repeat', pick: pickF('pismoP', c.id), ...selB(c.id === pS.id) })),
+      cTargets: TARGETS.map(([k, l, f]) => ({ label: l, color: PAINT[form[f]], pick: () => this.setState({ cTarget: k }), bg: k === tgt[0] ? '#fbfbf6' : 'transparent', sh: k === tgt[0] ? '0 1px 2px rgba(0,0,0,.1)' : 'none' })),
+      cTargetLabel: tgt[1], cTargetName: form[tgt[2]],
+      fPaint: Object.keys(PAINT).map(v => ({ label: v, color: PAINT[v], pick: pickF(tgt[2], v), ring: form[tgt[2]] === v ? '0 0 0 3px #f4f4ec, 0 0 0 4.5px #1b1b1b' : 'inset 0 0 0 1px rgba(0,0,0,.06)' })),
+      fPrefix: PREFIXY.map(chipF('prefix', pre)), fRozvrzeni: ROZVRZENI.map(chipF('rozvrzeni', roz)), fOblouk: OBLOUK.map(chipF('oblouk', form.oblouk || 'rovně')),
+      showHorni: roz === 'nad i pod', onHorni: setF('horni'),
+      plate: { ...sh, arc, topText: topTxt, botText: botTxt, topStraight: !!topTxt && !curved, botStraight: !!botTxt && !curved, tsize: tsz(topTxt) + 'px',
+        preAbove, preTxt: pre, preCp: pre === 'č.p.', preCis: pre === 'Čís.', preNo: pre === '№', preS: Math.round(hp * .36) + 'px', preL: Math.round(hp * 1.02) + 'px', bg: sh.poly ? polySvg(sh, pColO, plast) : '#f6f1e2', glyphs: glyphs(txt, cS.id, hp), fg: PAINT[form.barvaC], sfg: PAINT[form.barvaN], text: txt, hasStreet: !!streetTxt,
+        ff: cS.ff, fw: cS.fw, fs: cS.fs, ls: cS.ls, pff: pS.ff, pfw: pS.fw, pfs: pS.fs, pls: pS.ls, ptt: pS.tt, pfv: pS.fv,
+        size: txt.length > 5 ? '42px' : txt.length > 3 ? '58px' : '88px', ssize: tsz(botTxt) + 'px',
+        shadow: sh.poly ? 'none' : 'inset 0 0 0 9px ' + pColO + ', inset 0 0 0 13px #f6f1e2, inset 0 0 0 15px ' + pColO + (plast ? ', inset 0 -8px 10px rgba(60,40,20,.16), inset 0 6px 8px rgba(255,255,255,.5)' : ''),
+        tshadow: plast ? 'drop-shadow(0 2px 0 rgba(0,0,0,.2))' : 'none' },
+      submit: () => { if (!okCislo || !okEmail) return this.setState({ err: true }); this.setState({ sent: true, err: false }); if (this.pageRef.current) this.pageRef.current.scrollTop = 0; },
+      newOrder: () => this.setState({ sent: false, err: false, form: { ...EMPTY_FORM } }),
+      stageRef: this.stageRef, tiles, navOpacity: navOn ? 1 : 0, navShift: navOn ? 0 : 24, navPE: navOn ? 'auto' : 'none',
+            onDown: e => {
+        cancelAnimationFrame(this.raf);
+        this.moved = false; this.vx = this.vy = 0;
+        this.drag = { x: e.clientX, y: e.clientY, t: performance.now(), dist: 0 };
+        e.currentTarget.style.cursor = 'grabbing';
+        if (this.state.menuOpen) this.setState({ menuOpen: false });
+      },
+      onWheel: e => {
+        if (this.state.view !== 'canvas' || this.state.sel || this.state.filterOpen || this.state.page) return;
+        const now = performance.now(), dy = e.deltaY;
+        if (!dy || now - (this._wt || 0) < 350) { this._wt = Math.abs(dy) > 4 ? now : (this._wt || 0); return; }
+        this._wt = now;
+        this.setZoom(this.state.zi + (dy < 0 ? 1 : -1));
+      },
+      zoomIn: () => this.setZoom(zi + 1), zoomOut: () => this.setZoom(zi - 1),
+      inOpacity: zi === 2 ? 0.35 : 1, outOpacity: zi === 0 ? 0.35 : 1,
+      wide: Math.min(vw, innerWidth || vw) >= 1200,
+      isGrid: this.state.view === 'grid', isCanvas: this.state.view === 'canvas', showZoom: !filterOpen, filterMax: (Math.min(vw, innerWidth || vw) / navZoom - (Math.min(vw, innerWidth || vw) >= 1200 ? 500 : 230)) + 'px', navZoom, headerH: 68 * navZoom, footerH: 72 * navZoom, chipsBottom: 72 * navZoom + 14, rightVis: 'visible',
+      hintText: this.state.view === 'grid' ? '↕ scrollujte a prohlížejte' : '↔ táhněte a prohlížejte',
+      gridCols: 'repeat(auto-fill,minmax(' + [130, 210, 340][zi] + 'px,1fr))', gridGap: ['36px 20px', '56px 32px', '72px 48px'][zi],
+      setCanvas: () => this.setState({ view: 'canvas' }), setGrid: () => this.setState({ view: 'grid' }),
+      canvasBg: this.state.view === 'canvas' ? '#1b1b1b' : '#f4f4ec', canvasColor: this.state.view === 'canvas' ? '#fff' : '#1b1b1b',
+      gridBg: this.state.view === 'grid' ? '#1b1b1b' : '#f4f4ec', gridColor: this.state.view === 'grid' ? '#fff' : '#1b1b1b',
+      gridItems: this.filtered().map(it => ({ ...it, bg: 'url("' + it.src + '")', opacity: fade ? 0 : 1, open: () => this.setState({ sel: it }) })),
+      introShown: this.state.intro !== 'gone', introOpacity: this.state.intro === 'on' ? 1 : 0, introPointer: this.state.intro === 'on' ? 'auto' : 'none',
+      dismissIntro: () => { if (this.state.intro !== 'on') return; this.setState({ intro: 'fading' }); setTimeout(() => this.setState({ intro: 'gone' }), 650); }, showHint: !crowded, chipsBottom: Math.ceil(72 * navZoom) + 14, menuBottom: Math.ceil(72 * navZoom) + 14 + chipsRow,
+      menuOpen, toggleMenu: () => this.setState({ menuOpen: !menuOpen }),
+      filterOpen, filterClosed: !filterOpen,
+      openFilter: () => this.setState({ filterOpen: true, menuOpen: false }),
+      closeFilter: () => this.setState({ filterOpen: false }),
+      sections: [mk('barva', 'barva', Object.keys(COLORS), true), mk('tvar', 'tvar', TVARY, false), mk('provedeni', 'provedení', PROVEDENI, false)],
+      clearFilters: () => { this.applyFilter(() => ({ barva: [], tvar: [], provedeni: [] })); this.setState({ zi: 1 }); this.animate({ z: ZOOMS[1], ox: 0, oy: 0, center: true }); },
+      activeChips, hasActive: activeChips.length > 0, activeCount: activeChips.length,
+      hasSel: !!sel,
+      sel: sel ? { ...sel, bg: `url("${sel.src}")` } : { label: '', vzor: '', tvar: '', provedeni: '', bg: 'none' },
+      close: () => this.setState({ sel: null }),
+      stop: e => e.stopPropagation(),
+    };
+  }
+}
+</script>
+</body>
+</html>

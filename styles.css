@@ -1,0 +1,7 @@
+html,body{margin:0;height:100%;overflow:hidden;background:#f4f4ec;color:#1b1b1b;font-family:"Instrument Sans","Helvetica Neue",Helvetica,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#1b1b1b;text-decoration:none}
+a:hover{opacity:.6}
+*{box-sizing:border-box}
+button{font-family:inherit}
+.tile:hover .tile-img,.hov-scale:hover .hov-img{transform:scale(1.04)}
+.hov-border:hover{border-color:#1b1b1b !important}
