@@ -3,7 +3,7 @@ import { createRoot } from 'https://esm.sh/react-dom@18.3.1/client';
 import htm from 'https://esm.sh/htm@3.1.1';
 import {
   ASSET_OK, probeAssets, COLORS, TVARY, PROVEDENI, ITEMS, ZOOMS, CISLA, glyphs, PISMA, PAINT, TARGETS, EMPTY_FORM,
-  PREFIXY, ROZVRZENI, OBLOUK, arcText, SHAPES, polySvg, STEPS, mod, rng,
+  PREFIXY, ROZVRZENI, OBLOUK, plateLayout, SHAPES, plateSvg, STEPS, FAKTA, mod, rng,
 } from './data.js';
 
 const html = htm.bind(React.createElement);
@@ -36,6 +36,8 @@ class App extends React.Component {
 
   componentDidMount() {
     probeAssets(() => this.setState(s => ({ assets: s.assets + 1 })));
+    // náhled měří šířky textu canvasem → po načtení webfontů přepočítat
+    if (document.fonts) { this.onFonts = () => this.setState(s => ({ assets: s.assets + 1 })); document.fonts.addEventListener('loadingdone', this.onFonts); }
     this.onResize = () => { const el = this.stageRef.current; this.setState({ vw: (el && el.clientWidth) || innerWidth || 1280, vh: (el && el.clientHeight) || innerHeight || 800 }); };
     this.onResize();
     this.center = () => {
@@ -77,7 +79,7 @@ class App extends React.Component {
 
   componentWillUnmount() {
     removeEventListener('resize', this.onResize); if (this.ro) this.ro.disconnect();
-    removeEventListener('pointermove', this.onMove); removeEventListener('pointerup', this.onUp); removeEventListener('keydown', this.onKey);
+    removeEventListener('pointermove', this.onMove); removeEventListener('pointerup', this.onUp); removeEventListener('keydown', this.onKey); if (this.onFonts) document.fonts.removeEventListener('loadingdone', this.onFonts);
     cancelAnimationFrame(this.raf); clearTimeout(this.ft); clearInterval(this.iv); clearTimeout(this.t1); clearTimeout(this.t2); clearTimeout(this.c1); clearTimeout(this.c2);
   }
 
@@ -213,28 +215,26 @@ class App extends React.Component {
     const pickF = (k, v) => () => this.setState(s => ({ form: { ...s.form, [k]: v } }));
     const sh = SHAPES[form.tvar] || SHAPES['ovál'], plast = form.provedeni === 'plastický', txt = form.cislo.trim() || '32';
     const okCislo = !!form.cislo.trim(), okEmail = /.+@.+\..+/.test(form.email);
-    const kickers = { omne: 'o mně', jak: 'jak objednat', kontakt: 'kontakt', objednat: 'objednávka' };
+    const kickers = { omne: 'o mně', cisla: 'o číslech', jak: 'jak objednat', kontakt: 'kontakt', objednat: 'objednávka' };
     const pick = ['V38', 'V27', 'V13'].map(v => ITEMS.find(it => it.vzor === v)).filter(Boolean);
     const wideNow = Math.min(vw, innerWidth || vw) >= 1200;
     const cS = CISLA.find(c => c.id === form.pismoC) || CISLA[0], pS = PISMA.find(c => c.id === form.pismoP) || PISMA[0];
     const tgt = TARGETS.find(t => t[0] === this.state.cTarget) || TARGETS[0];
     const selB = on => ({ border: on ? '#1b1b1b' : '#e0e0d6', bg: on ? '#fff' : '#fbfbf6' });
     const pColO = PAINT[form.barvaO], streetTxt = form.ulice.trim();
-    const roz = form.rozvrzeni || 'nápis pod', curved = form.oblouk === 'do oblouku', pre = form.prefix || 'bez';
+    const roz = form.rozvrzeni || 'nápis pod', pre = form.prefix || 'bez';
     const topTxt = roz === 'nad i pod' ? (form.horni || '').trim() : roz === 'nápis nad' ? streetTxt : '', botTxt = roz === 'nápis pod' || roz === 'nad i pod' ? streetTxt : '';
-    const preAbove = pre === 'ev.č.' || pre === 'číslo', preInline = pre === 'č.p.' || pre === 'Čís.' || pre === '№';
-    const hp = Math.round((txt.length > 5 ? 40 : txt.length > 3 ? 54 : 78) * (topTxt && botTxt ? .8 : 1) * (preAbove ? .86 : 1) * (preInline && txt.length > 2 ? .82 : 1));
-    const tsz = s => s.length > 16 ? 18 : s.length > 10 ? 22 : 28, PW = 320, PH = PW / parseFloat(sh.aspect), oval = form.tvar === 'ovál' || form.tvar === 'kruh';
-    const lsOf = fs => (parseFloat(pS.ls) || 0) * fs, chipF = (k, cur) => v => ({ label: v, pick: pickF(k, v), bg: cur === v ? '#1b1b1b' : '#e5e5dc', fg: cur === v ? '#fff' : '#1b1b1b' });
-    const pFont = fs => (pS.fs || 'normal') + ' ' + (pS.fv === 'small-caps' ? 'small-caps' : 'normal') + ' ' + (pS.fw || 400) + ' ' + fs + 'px ' + pS.ff, up = pS.tt === 'uppercase';
-    const arc = curved ? [...(topTxt ? arcText(topTxt, tsz(topTxt), lsOf(tsz(topTxt)), PW, PH, true, oval, pFont(tsz(topTxt)), up) : []), ...(botTxt ? arcText(botTxt, tsz(botTxt), lsOf(tsz(botTxt)), PW, PH, false, oval, pFont(tsz(botTxt)), up) : [])] : [];
+    const chipF = (k, cur) => v => ({ label: v, pick: pickF(k, v), bg: cur === v ? '#1b1b1b' : '#e5e5dc', fg: cur === v ? '#fff' : '#1b1b1b' });
+    const lay = form.mode === 'vlastni' ? plateLayout({ tvar: form.tvar, sh, txt, cS, pS, pre, topTxt, botTxt, oblouk: form.oblouk, velC: +form.velC, velN: +form.velN, rozestup: +form.rozestup, posun: +form.posun || 0 }) : { arc: [], lines: [], glyphs: [] };
+    const SL_DEF = { velC: 100, velN: 100, rozestup: 100, posun: 0 }, slider = (k, label, lo, hi, step, fmt) => { const val = form[k] === undefined || form[k] === '' ? SL_DEF[k] : +form[k]; return { key: k, label, lo, hi, step, val, txt: fmt(val), on: setF(k) }; };
+    const pct = v => v + ' %';
     return {
       hasPage: !!page, pageKicker: kickers[page] || '', pageZoom: navZoom > 1 ? Math.max(1, navZoom * 0.8) : 1,
-      isOmne: page === 'omne', isJak: page === 'jak', isKontakt: page === 'kontakt', isObjednat: page === 'objednat',
-      lineOmne: page === 'omne' ? '#1b1b1b' : 'transparent', lineJak: page === 'jak' ? '#1b1b1b' : 'transparent', lineKontakt: page === 'kontakt' ? '#1b1b1b' : 'transparent',
+      isOmne: page === 'omne', isCisla: page === 'cisla', isJak: page === 'jak', isKontakt: page === 'kontakt', isObjednat: page === 'objednat',
+      lineOmne: page === 'omne' ? '#1b1b1b' : 'transparent', lineCisla: page === 'cisla' ? '#1b1b1b' : 'transparent', lineJak: page === 'jak' ? '#1b1b1b' : 'transparent', lineKontakt: page === 'kontakt' ? '#1b1b1b' : 'transparent',
       goHome: e => { if (e) e.preventDefault(); this.setState({ page: null, sel: null, menuOpen: false }); },
       goGrid: e => { if (e) e.preventDefault(); this.setState({ page: null, sel: null, menuOpen: false, view: 'grid' }); },
-      goOmne: nav('omne'), goJak: nav('jak'), goKontakt: nav('kontakt'),
+      goOmne: nav('omne'), goCisla: nav('cisla'), goJak: nav('jak'), goKontakt: nav('kontakt'),
       goObjednat: e => { if (e) e.preventDefault(); this.go('objednat', this.state.sent ? { sent: false, err: false, form: { ...EMPTY_FORM } } : null); },
       orderLike: e => { e.preventDefault(); const s = this.state.sel; this.go('objednat', { sent: false, err: false, form: { ...EMPTY_FORM, cislo: s.label, barva: s.barva, tvar: s.tvar, provedeni: s.provedeni, vzor: s.vzor, src: s.src, mode: 'vzor' } }); },
       notWide: !wideNow, menuLabel: menuOpen ? 'zavřít' : 'menu',
@@ -251,6 +251,8 @@ class App extends React.Component {
       clearRef: () => this.setState(s => ({ form: { ...s.form, vzor: null, src: null } })),
       errCislo: err && !okCislo ? '#b5552f' : '#d6d6cc', errEmail: err && !okEmail ? '#b5552f' : '#d6d6cc',
       onCislo: setF('cislo'), onUlice: setF('ulice'), onJmeno: setF('jmeno'), onEmail: setF('email'), onPozn: setF('pozn'), onHorni: setF('horni'),
+      sliders: [slider('velC', 'číslo', 40, 160, 2, pct), slider('velN', 'nápis', 40, 220, 2, pct), slider('rozestup', 'rozestup', 40, 170, 2, pct), slider('posun', 'výška', -25, 25, 1, v => v > 0 ? '↓ ' + v : v < 0 ? '↑ ' + -v : 'střed')],
+      slidersDirty: Object.keys(SL_DEF).some(k => form[k] !== undefined && +form[k] !== SL_DEF[k]), resetSliders: () => this.setState(s => ({ form: { ...s.form, ...SL_DEF } })),
       fTvary: TVARY.map(chipF('tvar', form.tvar)),
       fProvedeni: PROVEDENI.map(chipF('provedeni', form.provedeni)),
       cStyle: cS, pStyle: pS,
@@ -259,13 +261,12 @@ class App extends React.Component {
       cTargets: TARGETS.map(([k, l, fk]) => ({ key: k, label: l, color: PAINT[form[fk]], pick: () => this.setState({ cTarget: k }), bg: k === tgt[0] ? '#fbfbf6' : 'transparent', sh: k === tgt[0] ? '0 1px 2px rgba(0,0,0,.1)' : 'none' })),
       cTargetLabel: tgt[1], cTargetName: form[tgt[2]],
       fPaint: Object.keys(PAINT).map(v => ({ label: v, color: PAINT[v], pick: pickF(tgt[2], v), ring: form[tgt[2]] === v ? '0 0 0 3px #f4f4ec, 0 0 0 4.5px #1b1b1b' : 'inset 0 0 0 1px rgba(0,0,0,.06)' })),
-      fPrefix: PREFIXY.map(chipF('prefix', pre)), fRozvrzeni: ROZVRZENI.map(chipF('rozvrzeni', roz)), fOblouk: OBLOUK.map(chipF('oblouk', form.oblouk || 'rovně')),
+      fPrefix: PREFIXY.map(chipF('prefix', pre)), fRozvrzeni: ROZVRZENI.map(chipF('rozvrzeni', roz)), fOblouk: OBLOUK.map(chipF('oblouk', form.oblouk === 'do oblouku' ? 'po okraji' : form.oblouk || 'rovně')),
       showHorni: roz === 'nad i pod',
-      plate: { ...sh, arc, topText: topTxt, botText: botTxt, topStraight: !!topTxt && !curved, botStraight: !!botTxt && !curved, tsize: tsz(topTxt) + 'px',
-        preAbove, preTxt: pre, preCp: pre === 'č.p.', preCis: pre === 'Čís.', preNo: pre === '№', preS: Math.round(hp * .36) + 'px', preL: Math.round(hp * 1.02) + 'px', bg: sh.poly ? polySvg(sh, pColO, plast) : '#f6f1e2', glyphs: glyphs(txt, cS.id, hp, cS.ff), fg: PAINT[form.barvaC], sfg: PAINT[form.barvaN], text: txt,
-        pff: pS.ff, pfw: pS.fw, pfs: pS.fs, pls: pS.ls, ptt: pS.tt, pfv: pS.fv, ssize: tsz(botTxt) + 'px',
-        shadow: sh.poly ? 'none' : 'inset 0 0 0 9px ' + pColO + ', inset 0 0 0 13px #f6f1e2, inset 0 0 0 15px ' + pColO + (plast ? ', inset 0 -8px 10px rgba(60,40,20,.16), inset 0 6px 8px rgba(255,255,255,.5)' : ''),
-        tshadow: plast ? 'drop-shadow(0 2px 0 rgba(0,0,0,.2))' : 'none' },
+      plate: { ...sh, ...lay, preTxt: pre, bg: plateSvg(sh, pColO, plast), fg: PAINT[form.barvaC], sfg: PAINT[form.barvaN], text: txt,
+        pff: pS.ff, pfw: pS.fw, pfs: pS.fs, pls: pS.ls, ptt: pS.tt, pfv: pS.fv,
+        // písmo je vždy malované naplocho — plastický je jen reliéf cedulky
+        ink: 'color:' + PAINT[form.barvaC], sink: 'color:' + PAINT[form.barvaN], tshadow: 'none' },
       submit: () => { if (!okCislo || !okEmail) return this.setState({ err: true }); this.setState({ sent: true, err: false }); if (this.pageRef.current) this.pageRef.current.scrollTop = 0; },
       newOrder: () => this.setState({ sent: false, err: false, form: { ...EMPTY_FORM } }),
       tiles, navOpacity: navOn ? 1 : 0, navShift: navOn ? 0 : 24, navPE: navOn ? 'auto' : 'none',
@@ -285,7 +286,7 @@ class App extends React.Component {
       },
       zoomIn: () => this.setZoom(zi + 1), zoomOut: () => this.setZoom(zi - 1),
       inOpacity: zi === 2 ? 0.35 : 1, outOpacity: zi === 0 ? 0.35 : 1,
-      wide: wideNow,
+      wide: wideNow, showTagline: Math.min(vw, innerWidth || vw) >= 1440,
       isGrid: this.state.view === 'grid', showZoom: !filterOpen, filterMax: (Math.min(vw, innerWidth || vw) / navZoom - (wideNow ? 500 : 230)) + 'px', navZoom, headerH: 68 * navZoom, footerH: 72 * navZoom,
       hintText: this.state.view === 'grid' ? '↕ scrollujte a prohlížejte' : '↔ táhněte a prohlížejte',
       gridCols: 'repeat(auto-fill,minmax(' + [130, 210, 340][zi] + 'px,1fr))', gridGap: ['36px 20px', '56px 32px', '72px 48px'][zi],
@@ -339,9 +340,10 @@ class App extends React.Component {
     return html`
       <header style=${css(`zoom:${v.navZoom};position:fixed;top:0;left:0;right:0;height:68px;z-index:6;background:#f4f4ec;border-bottom:1px solid #e0e0d6;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:24px;padding:0 24px`)}>
         <a href="#" onClick=${v.goHome} style=${css('font-size:24px;font-weight:600;letter-spacing:-.04em;line-height:1;white-space:nowrap;justify-self:start')}>domovní čísla</a>
-        ${v.wide && html`<span style=${css('font-size:16px;color:#55554b;letter-spacing:-.01em;white-space:nowrap')}>Vaše adresa, namalovaná štětcem.</span>`}
+        ${v.showTagline && html`<span style=${css('font-size:16px;color:#55554b;letter-spacing:-.01em;white-space:nowrap')}>Vaše adresa, namalovaná štětcem.</span>`}
         <nav style=${css('display:flex;justify-content:flex-end;align-items:center;gap:24px;font-size:15px;grid-column:3;white-space:nowrap;min-width:0')}>
           ${v.wide && navLink(v.goOmne, v.lineOmne, 'o mně')}
+          ${v.wide && navLink(v.goCisla, v.lineCisla, 'o číslech')}
           ${v.wide && navLink(v.goJak, v.lineJak, 'jak objednat')}
           ${v.wide && navLink(v.goKontakt, v.lineKontakt, 'kontakt')}
           ${v.notWide && html`<button onClick=${v.toggleMenu} style=${css('height:40px;display:flex;align-items:center;gap:8px;padding:0 4px;border:0;background:none;font-size:15px;color:#1b1b1b;cursor:pointer')}><span>${v.menuLabel}</span></button>`}
@@ -351,6 +353,7 @@ class App extends React.Component {
       ${v.menuOpen && html`
         <div style=${css(`zoom:${v.navZoom};position:fixed;top:68px;left:0;right:0;z-index:9;background:#f4f4ec;border-bottom:1px solid #e0e0d6;display:flex;flex-direction:column;padding:8px 24px 20px`)}>
           ${menuLink(v.goOmne, 'o mně')}
+          ${menuLink(v.goCisla, 'o číslech')}
           ${menuLink(v.goJak, 'jak objednat')}
           ${menuLink(v.goKontakt, 'kontakt', true)}
         </div>`}`;
@@ -430,6 +433,7 @@ class App extends React.Component {
             <button onClick=${v.goHome} style=${css('height:40px;display:flex;align-items:center;gap:8px;padding:0 14px;border:1px solid #d6d6cc;border-radius:4px;background:#f4f4ec;font-size:15px;color:#1b1b1b;cursor:pointer')}><span>←</span><span>zpět na čísla</span></button>
           </div>
           ${v.isOmne && this.renderOmne(v)}
+          ${v.isCisla && this.renderCisla(v)}
           ${v.isJak && this.renderJak(v)}
           ${v.isKontakt && this.renderKontakt(v)}
           ${v.isObjednat && (v.sent ? this.renderSent(v) : this.renderOrder(v))}
@@ -449,8 +453,41 @@ class App extends React.Component {
             ${p('Barvu, tvar i ornament ladím s domem — s fasádou, okny nebo dveřmi. Výsledkem je kus, který vydrží počasí i roky.')}
           </div>
         </div>
+        <a href="https://www.fler.cz/magazin/db-keramika-strasne-nerada-delam-hrnky-2480" target="_blank" rel="noopener" style=${css('display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px 56px;align-items:start;padding-top:32px;border-top:1px solid #e0e0d6;color:#1b1b1b;text-decoration:none')}>
+          <span style=${css('font-size:15px;color:#77776c;padding-top:10px')}>napsali o mně</span>
+          <span style=${css('display:flex;flex-direction:column;gap:14px')}>
+            <span style=${css("font-family:'Instrument Serif',serif;font-style:italic;font-size:32px;line-height:1.2;letter-spacing:-.01em;text-wrap:balance;max-width:24ch")}>„Barevná či černobílá cedulka rozzáří každý vchod.“</span>
+            <span style=${css('font-size:15px;color:#55554b')}>Fler MAG, červenec 2018 · <span style=${css('text-decoration:underline;text-underline-offset:3px')}>dB keramika: Strašně nerada dělám hrnky ↗</span></span>
+          </span>
+        </a>
         <div style=${css('display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;padding-top:32px;border-top:1px solid #e0e0d6')}>
           ${v.omneWorks.map(w => html`<button key=${w.key} onClick=${w.open} style=${css(`border:0;padding:0;background:none;cursor:pointer;aspect-ratio:1.3;background-image:${w.bg};background-size:contain;background-repeat:no-repeat;background-position:center;filter:drop-shadow(4px 10px 8px rgba(40,32,20,.2))`)}></button>`)}
+        </div>
+      </div>`;
+  }
+
+  renderCisla(v) {
+    const p = t => html`<p style=${css('margin:0;font-size:18px;line-height:1.6;color:#3a3a33;max-width:46ch;text-wrap:pretty')}>${t}</p>`;
+    return html`
+      <div style=${css('display:flex;flex-direction:column;gap:48px')}>
+        <div style=${css('display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px 56px;align-items:start')}>
+          <h1 style=${css(H1 + ';text-wrap:balance')}>Keramika, která vydrží na fasádě.</h1>
+          <div style=${css('display:flex;flex-direction:column;gap:24px;padding-top:8px')}>
+            ${p('Maluji tradiční technikou pod glazuru, kde je vidět každý tah štětcem. Každá cedulka je originál — žádná přesná replika předlohy, ale kus namalovaný tak, jak ho v tu chvíli vnímám.')}
+            ${p('Odstín malby i podkladu se může mírně lišit — to k ručně pálené keramice patří.')}
+          </div>
+        </div>
+        <div style=${css('display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));border-top:1px solid #1b1b1b')}>
+          ${FAKTA.map(([l, val, t]) => html`
+            <div key=${l} style=${css('display:flex;flex-direction:column;gap:8px;padding:24px 24px 28px 0;border-bottom:1px solid #e0e0d6')}>
+              <span style=${css('font-size:15px;color:#77776c')}>${l}</span>
+              <span style=${css('font-size:24px;letter-spacing:-.03em')}>${val}</span>
+              <span style=${css('font-size:15px;line-height:1.5;color:#3a3a33;text-wrap:pretty')}>${t}</span>
+            </div>`)}
+        </div>
+        <div style=${css('display:flex;gap:12px;flex-wrap:wrap;align-items:center')}>
+          <a href="#" onClick=${v.goObjednat} style=${css(BTN_DARK)}>objednat číslo</a>
+          <a href="#" onClick=${v.goJak} style=${css('height:48px;display:flex;align-items:center;padding:0 22px;border-radius:4px;border:1px solid #d6d6cc;font-size:16px')}>jak objednat</a>
         </div>
       </div>`;
   }
@@ -532,7 +569,7 @@ class App extends React.Component {
     const field = 'display:flex;flex-direction:column;gap:8px;font-size:14px;color:#55554b';
     const glyphRow = (gl, color) => gl.map((g, i) => g.isImg
       ? html`<span key=${i} style=${{ flex: 'none', width: g.w, height: g.h, background: color, WebkitMask: g.mask, mask: g.mask }}></span>`
-      : html`<span key=${i} style=${{ flex: 'none', fontFamily: g.ff, fontSize: g.fs, lineHeight: 1, color }}>${g.ch}</span>`);
+      : html`<span key=${i} style=${{ flex: 'none', fontFamily: g.ff, fontWeight: g.fw, fontStyle: g.fst, fontSize: g.fs, lineHeight: g.lh, color }}>${g.ch}</span>`);
     const pf = `font-family:${plate.pff};font-weight:${plate.pfw};font-style:${plate.pfs}`;
     return html`
       <div style=${css('display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:56px;align-items:start')}>
@@ -565,6 +602,10 @@ class App extends React.Component {
             <div style=${css('display:flex;flex-direction:column;gap:10px')}>${label('zkratka před číslem')}${chips(v.fPrefix)}</div>
             <div style=${css('display:flex;flex-direction:column;gap:10px')}>${label('rozvržení nápisu')}${chips(v.fRozvrzeni)}${chips(v.fOblouk)}</div>
             ${v.showHorni && html`<label style=${css(field)}><span>horní nápis</span>${input(form.horni, v.onHorni, '#d6d6cc', { placeholder: 'Novákovi' })}</label>`}
+            <div style=${css('display:flex;flex-direction:column;gap:10px')}>
+              <div style=${css('display:flex;justify-content:space-between;align-items:baseline;gap:12px')}>${label('velikost a rozestup')}${v.slidersDirty && html`<button onClick=${v.resetSliders} style=${css('border:0;background:none;padding:0;font:inherit;font-size:14px;color:#55554b;cursor:pointer;text-decoration:underline')}>výchozí</button>`}</div>
+              ${v.sliders.map(o => html`<label key=${o.key} style=${css('display:grid;grid-template-columns:72px minmax(0,1fr) 52px;gap:12px;align-items:center;font-size:14px;color:#1b1b1b')}><span>${o.label}</span><input type="range" min=${o.lo} max=${o.hi} step=${o.step} value=${o.val} onInput=${o.on} onChange=${o.on} style=${css('width:100%;accent-color:#1b1b1b')} /><span style=${css('text-align:right;color:#77776c;font-variant-numeric:tabular-nums;white-space:nowrap')}>${o.txt}</span></label>`)}
+            </div>
             <div style=${css('display:flex;flex-direction:column;gap:10px')}>
               <div style=${css('display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap')}>${label('písmo čísla · vzor ' + v.cStyle.id)}${v.cStyle.note && html`<span style=${css('font-size:13px;color:#b5552f')}>${v.cStyle.note}</span>`}</div>
               <div style=${css('display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:6px;max-height:256px;overflow-y:auto;padding:2px')}>
@@ -605,17 +646,16 @@ class App extends React.Component {
 
         <div style=${css('position:sticky;top:24px;display:flex;flex-direction:column;gap:16px;align-items:center;padding:48px 24px;border-radius:4px;background:#ebebe2')}>
           ${v.isVlastni && html`
-            <div style=${{ width: 'min(320px,100%)', aspectRatio: plate.aspect, borderRadius: plate.radius, clipPath: plate.clip, background: plate.bg, backgroundSize: '100% 100%', boxShadow: plate.shadow, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '10%', overflow: 'hidden', position: 'relative', transition: 'all .35s cubic-bezier(.2,.7,.2,1)' }}>
-              ${plate.arc.map((c, i) => html`<span key=${i} style=${css(`position:absolute;left:${c.l};top:${c.tp};transform:translate(-50%,-50%) rotate(${c.r});${pf};text-transform:${plate.ptt};font-variant:${plate.pfv};color:${plate.sfg};font-size:${c.fs};line-height:1;white-space:pre;filter:${plate.tshadow}`)}>${c.ch}</span>`)}
-              ${plate.topStraight && html`<span style=${css(`${pf};letter-spacing:${plate.pls};text-transform:${plate.ptt};font-variant:${plate.pfv};color:${plate.sfg};line-height:1.1;white-space:nowrap;font-size:${plate.tsize}`)}>${plate.topText}</span>`}
-              ${plate.preAbove && html`<span style=${css(`${pf};color:${plate.fg};line-height:1;font-size:${plate.preS};margin-bottom:-2px`)}>${plate.preTxt}</span>`}
-              <span style=${css(`display:flex;align-items:flex-end;justify-content:center;gap:2px;max-width:100%;filter:${plate.tshadow}`)}>
-                ${plate.preCp && html`<span style=${css(`flex:none;align-self:center;margin-right:6px;${pf};color:${plate.fg};line-height:1;font-size:${plate.preS}`)}>č.p.</span>`}
-                ${plate.preCis && html`<span style=${css(`flex:none;position:relative;margin-right:4px;${pf};color:${plate.fg};line-height:1;font-size:${plate.preL}`)}>Č<span style=${css('position:absolute;left:38%;top:44%;font-size:.36em;line-height:1')}>ís.</span></span>`}
-                ${plate.preNo && html`<span style=${css(`flex:none;display:flex;align-items:flex-start;margin-right:6px;${pf};color:${plate.fg};line-height:1;font-size:${plate.preL}`)}>N<span style=${css('font-size:.4em;line-height:1;margin:.12em 0 0 .06em;padding-bottom:.06em;border-bottom:.12em solid currentColor')}>o</span></span>`}
+            <div style=${{ width: 'min(320px,100%)', aspectRatio: plate.aspect, borderRadius: plate.radius, clipPath: plate.clip, background: plate.bg, backgroundSize: '100% 100%', overflow: 'hidden', position: 'relative', containerType: 'inline-size', transition: 'aspect-ratio .35s cubic-bezier(.2,.7,.2,1)' }}>
+              ${plate.arc.map((c, i) => html`<span key=${i} style=${css(`position:absolute;left:${c.l};top:${c.tp};transform:translate(-50%,-50%) rotate(${c.r});${pf};text-transform:${plate.ptt};font-variant:${plate.pfv};${plate.sink};font-size:${c.fs};line-height:1;white-space:pre;filter:${plate.tshadow}`)}>${c.ch}</span>`)}
+              ${plate.lines.map(l => html`<span key=${l.key} style=${css(`position:absolute;left:50%;top:${l.top};transform:translate(-50%,-50%);${pf};letter-spacing:${plate.pls};text-transform:${plate.ptt};font-variant:${plate.pfv};${plate.sink};line-height:1.1;white-space:nowrap;font-size:${l.fs};filter:${plate.tshadow}`)}>${l.text}</span>`)}
+              ${plate.preAbove && html`<span style=${css(`position:absolute;left:50%;top:${plate.preATop};transform:translate(-50%,-50%);${pf};${plate.ink};line-height:1;white-space:nowrap;font-size:${plate.preAS};filter:${plate.tshadow}`)}>${plate.preTxt}</span>`}
+              <span style=${css(`position:absolute;left:50%;top:${plate.nTop};transform:translate(-50%,-50%);display:flex;align-items:flex-end;gap:${plate.gap};white-space:nowrap;filter:${plate.tshadow}`)}>
+                ${plate.preCp && html`<span style=${css(`flex:none;margin-right:${plate.preM};margin-bottom:${plate.preMb};${pf};${plate.ink};line-height:1;font-size:${plate.preS}`)}>č.p.</span>`}
+                ${plate.preCis && html`<span style=${css(`flex:none;position:relative;margin-right:${plate.preM};${pf};${plate.ink};line-height:${plate.preLh};font-size:${plate.preL}`)}>Č<span style=${css(`position:absolute;left:40%;top:38%;font-size:.34em;line-height:1;${plate.ink}`)}>ís.</span></span>`}
+                ${plate.preNo && html`<span style=${css(`flex:none;display:flex;align-items:flex-start;margin-right:${plate.preM};${pf};${plate.ink};line-height:${plate.preLh};font-size:${plate.preL}`)}>N<span style=${css(`font-size:.4em;line-height:1;margin:.12em 0 0 .06em;padding-bottom:.06em;border-bottom:.12em solid ${plate.fg};${plate.ink}`)}>o</span></span>`}
                 ${glyphRow(plate.glyphs, plate.fg)}
               </span>
-              ${plate.botStraight && html`<span style=${css(`${pf};letter-spacing:${plate.pls};text-transform:${plate.ptt};font-variant:${plate.pfv};color:${plate.sfg};line-height:1.1;white-space:nowrap;font-size:${plate.ssize}`)}>${plate.botText}</span>`}
             </div>
             <span style=${css('font-size:14px;color:#55554b;text-align:center;text-wrap:balance')}>náhled · číslo ${v.cStyle.id} · nápis ${v.pStyle.id} · nápis v náhledu orientačně, namaluji ho ve stylu vzoru · ${form.tvar} · ${form.provedeni}</span>`}
           ${v.isVzor && (v.hasRef ? html`
