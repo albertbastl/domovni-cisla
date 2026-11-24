@@ -5,3 +5,7 @@ a:hover{opacity:.6}
 button{font-family:inherit}
 .tile:hover .tile-img,.hov-scale:hover .hov-img{transform:scale(1.04)}
 .hov-border:hover{border-color:#1b1b1b !important}
+.hero-mouse{position:relative;width:22px;height:32px;border:1.5px solid #1b1b1b;border-radius:11px;animation:hero-drag 2.4s cubic-bezier(.45,0,.25,1) infinite}
+.hero-mouse span{position:absolute;left:50%;top:6px;width:2px;height:6px;margin-left:-1px;border-radius:1px;background:#1b1b1b}
+@keyframes hero-drag{0%,100%{transform:translateX(0)}25%{transform:translateX(-9px)}75%{transform:translateX(9px)}}
+@media (prefers-reduced-motion:reduce){.hero-mouse{animation:none}}

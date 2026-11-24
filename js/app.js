@@ -7,6 +7,7 @@ import {
 } from './data.js';
 
 const html = htm.bind(React.createElement);
+const HERO_W = 500, HERO_H = 290; // world units
 
 // "a:b;c:d" → { a: 'b', c: 'd' } (keeps the design's inline CSS readable)
 const cssCache = new Map();
@@ -44,7 +45,7 @@ class App extends React.Component {
       if (this.drag || this.moved) return;
       const el = this.stageRef.current, vw = (el && el.clientWidth) || innerWidth, vh = (el && el.clientHeight) || innerHeight;
       this.setState({ vw, vh }, () => {
-        const s = this.layout().slots.find(q => q.item.src.endsWith('/n32.webp'));
+        const s = this.layout().hero;
         if (s) this.setState(st => ({ ox: vw / 2 - (s.x + s.w / 2) * st.z, oy: vh / 2 - (s.y + s.h / 2) * st.z }));
       });
     };
@@ -150,7 +151,33 @@ class App extends React.Component {
       const cx = c * S + S / 2, cy = r0 * R + R / 2 + (c % 2) * R / 2;
       slots.push({ x: cx - w / 2, y: cy - h / 2, w, h, item: order[k++ % order.length] });
     }
-    this._lk = key; this._l = { slots, W: NC * S, H: NR * R };
+    // hero: nahradí prostřední číslo (n32), okolní čísla, která by překážela, vyhodí
+    let hero = null;
+    const mid = slots.find(q => q.item.src.endsWith('/n32.webp')) || slots[Math.floor(slots.length / 2)];
+    if (mid) {
+      const hx = mid.x + mid.w / 2 - HERO_W / 2, hy = mid.y + mid.h / 2 - HERO_H / 2, pad = 40;
+      hero = { x: hx, y: hy, w: HERO_W, h: HERO_H };
+      // čísla, která by do hero zasahovala, odsune od středu těsně k jeho okraji
+      const mx = hx + HERO_W / 2, my = hy + HERO_H / 2;
+      // pokud by odsunuté číslo narazilo do souseda, zmenší se (min. 60 %), jinak se vynechá
+      const hit = (q, g) => q.x < hx + HERO_W + g && q.x + q.w > hx - g && q.y < hy + HERO_H + g && q.y + q.h > hy - g;
+      const touch = (a, b, g) => a.x < b.x + b.w + g && a.x + a.w > b.x - g && a.y < b.y + b.h + g && a.y + a.h > b.y - g;
+      const moved = [], keep = slots.filter(q => !hit(q, pad));
+      for (const q of slots) {
+        if (!hit(q, pad)) continue;
+        const cx = q.x + q.w / 2, cy = q.y + q.h / 2, dx = cx - mx, dy = cy - my;
+        let placed = null;
+        for (let sc = 1; sc >= 0.6 && !placed && (dx || dy); sc -= 0.1) {
+          const w = q.w * sc, h = q.h * sc;
+          const tx = dx ? (HERO_W / 2 + w / 2 + pad) / Math.abs(dx) : Infinity, ty = dy ? (HERO_H / 2 + h / 2 + pad) / Math.abs(dy) : Infinity, t = Math.min(tx, ty);
+          const c = { ...q, w, h, x: mx + dx * t - w / 2, y: my + dy * t - h / 2 };
+          if (!keep.some(o => touch(c, o, 24)) && !moved.some(o => touch(c, o, 24))) placed = c;
+        }
+        if (placed) moved.push(placed);
+      }
+      slots.length = 0; slots.push(...keep, ...moved);
+    }
+    this._lk = key; this._l = { slots, W: NC * S, H: NR * R, hero };
     return this._l;
   }
 
@@ -169,7 +196,7 @@ class App extends React.Component {
 
   vals() {
     const { ox, oy, z, zi, vw, sel, hover, f, filterOpen, section, menuOpen, fade } = this.state;
-    const { slots, W, H, finite } = this.layout();
+    const { slots, W, H, finite, hero } = this.layout();
     const Wz = W * z, Hz = H * z, m = 280 * z, tiles = [], shown = this.state.shown;
     slots.forEach((s, i) => {
       const w = s.w * z, h = s.h * z;
@@ -286,7 +313,9 @@ class App extends React.Component {
       },
       zoomIn: () => this.setZoom(zi + 1), zoomOut: () => this.setZoom(zi - 1),
       inOpacity: zi === 2 ? 0.35 : 1, outOpacity: zi === 0 ? 0.35 : 1,
-      wide: wideNow, showTagline: Math.min(vw, innerWidth || vw) >= 1440,
+      wide: wideNow,
+      hero: hero && { transform: `translate3d(${mod(hero.x * z + ox + hero.w * z, Wz) - hero.w * z}px,${mod(hero.y * z + oy + hero.h * z, Hz) - hero.h * z}px,0) scale(${z})`, on: this.state.popDone && !fade },
+      heroGrid: () => { if (!this.moved) this.setState({ view: 'grid' }); },
       isGrid: this.state.view === 'grid', showZoom: !filterOpen, filterMax: (Math.min(vw, innerWidth || vw) / navZoom - (wideNow ? 500 : 230)) + 'px', navZoom, headerH: 68 * navZoom, footerH: 72 * navZoom,
       hintText: this.state.view === 'grid' ? '↕ scrollujte a prohlížejte' : '↔ táhněte a prohlížejte',
       gridCols: 'repeat(auto-fill,minmax(' + [130, 210, 340][zi] + 'px,1fr))', gridGap: ['36px 20px', '56px 32px', '72px 48px'][zi],
@@ -323,7 +352,7 @@ class App extends React.Component {
 
   renderStage(v) {
     return html`
-      <div ref=${this.stageRef} onPointerDown=${v.onDown} onWheel=${v.onWheel} style=${css('position:fixed;inset:0;overflow:hidden;cursor:grab;touch-action:none;user-select:none;background:#f4f4ec')}>
+      <div ref=${this.stageRef} onPointerDown=${v.onDown} onWheel=${v.onWheel} style=${css('position:fixed;inset:0;overflow:hidden;cursor:grab;touch-action:none;user-select:none;background:#f4f4ec;visibility:' + (v.isGrid ? 'hidden' : 'visible'))}>
         ${v.tiles.map(t => html`
           <div key=${t._i} className="tile" onClick=${t.open} onMouseEnter=${t.enter} onMouseLeave=${t.leave} style=${{ position: 'absolute', left: 0, top: 0, width: t.w + 'px', height: t.h + 'px', transform: t.transform, opacity: t.opacity, transition: 'opacity .25s ease', willChange: 'transform', cursor: 'pointer' }}>
             <div style=${{ width: '100%', height: '100%', transform: `scale(${t.pop})`, transition: 'transform .22s cubic-bezier(.2,1.4,.4,1)', pointerEvents: 'none' }}>
@@ -331,6 +360,7 @@ class App extends React.Component {
             </div>
             ${t.hovered && html`<div style=${css('position:absolute;left:-14px;top:58%;background:#1b1b1b;color:#fff;font-size:15px;padding:7px 11px;border-radius:3px;white-space:nowrap;pointer-events:none;display:flex;gap:6px;align-items:center')}><span>+</span><span>vzor ${t.vzor}</span></div>`}
           </div>`)}
+        ${v.hero && this.renderHero(v)}
       </div>`;
   }
 
@@ -340,7 +370,6 @@ class App extends React.Component {
     return html`
       <header style=${css(`zoom:${v.navZoom};position:fixed;top:0;left:0;right:0;height:68px;z-index:6;background:#f4f4ec;border-bottom:1px solid #e0e0d6;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:24px;padding:0 24px`)}>
         <a href="#" onClick=${v.goHome} style=${css('font-size:24px;font-weight:600;letter-spacing:-.04em;line-height:1;white-space:nowrap;justify-self:start')}>domovní čísla</a>
-        ${v.showTagline && html`<span style=${css('font-size:16px;color:#55554b;letter-spacing:-.01em;white-space:nowrap')}>Vaše adresa, namalovaná štětcem.</span>`}
         <nav style=${css('display:flex;justify-content:flex-end;align-items:center;gap:24px;font-size:15px;grid-column:3;white-space:nowrap;min-width:0')}>
           ${v.wide && navLink(v.goOmne, v.lineOmne, 'o mně')}
           ${v.wide && navLink(v.goCisla, v.lineCisla, 'o číslech')}
@@ -359,14 +388,36 @@ class App extends React.Component {
         </div>`}`;
   }
 
+  renderHero(v) {
+    const h = v.hero;
+    return html`
+      <div style=${{ position: 'absolute', left: 0, top: 0, width: HERO_W + 'px', height: HERO_H + 'px', transform: h.transform, transformOrigin: '0 0', pointerEvents: 'none' }}>
+        <div style=${css(`width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;opacity:${h.on ? 1 : 0};transform:translateY(${h.on ? 0 : 20}px);transition:opacity .6s ease,transform .6s cubic-bezier(.2,.7,.2,1)`)}>
+          <h1 style=${css('margin:0;font-size:52px;font-weight:600;letter-spacing:-.04em;line-height:1.02;color:#1b1b1b')}>Vaše adresa,<br />namalovaná štětcem.</h1>
+          <p style=${css('margin:0;font-size:19px;line-height:1.5;color:#55554b;max-width:470px')}>Keramická domovní čísla maluji už dlouhá léta ručně a s láskou, podle opravdových starých vzorů. Vyberte si z katalogu, nebo si nechte namalovat vlastní.</p>
+          <div style=${css('display:flex;align-items:center;gap:12px;margin-top:6px;font-size:16px;color:#1b1b1b;justify-content:center;white-space:nowrap')}>
+            <span style=${css('display:flex;align-items:center;gap:22px;padding-left:10px')}>
+              <span className="hero-mouse"><span></span></span>
+              <span>táhněte myší a prohlížejte</span>
+            </span>
+            <span style=${css('color:#9a9a8f')}>nebo</span>
+            <button onClick=${v.heroGrid} style=${css('pointer-events:auto;height:38px;display:flex;align-items:center;gap:6px;padding:0 14px;border:1px solid #c9c9bf;border-radius:4px;background:#f4f4ec;font-size:16px;color:#1b1b1b;cursor:pointer')}><span style=${css('font-size:13px')}>▦</span>prohlédněte katalog</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
   renderGrid(v) {
     return html`
-      <div style=${css(`position:fixed;top:${v.headerH}px;bottom:${v.footerH}px;left:0;right:0;overflow-y:auto;background:#f4f4ec;z-index:4;padding:48px 32px 120px`)}>
+      <div style=${css(`position:fixed;top:${v.headerH}px;bottom:${v.footerH}px;left:0;right:0;overflow-y:auto;overscroll-behavior:contain;background:#f4f4ec;z-index:4;padding:48px 32px 120px`)}>
+        <div style=${css(`zoom:${v.pageZoom};max-width:1500px;margin:0 auto 56px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:16px 48px`)}>
+          <h1 style=${css(H1 + ';text-wrap:balance')}>Katalog vzorů</h1>
+          <p style=${css('margin:0;font-size:17px;line-height:1.5;color:#55554b;max-width:420px')}>${v.gridItems.length} ${v.gridItems.length === 1 ? 'vzor' : v.gridItems.length < 5 && v.gridItems.length ? 'vzory' : 'vzorů'} k inspiraci. Klikněte na cedulku pro detail — každou namaluji i v jiné barvě nebo s vaším číslem.</p>
+        </div>
         <div style=${css(`display:grid;grid-template-columns:${v.gridCols};gap:${v.gridGap};max-width:1500px;margin:0 auto`)}>
           ${v.gridItems.map(g => html`
-            <button key=${g.vzor} className="hov-scale" onClick=${g.open} style=${css(`border:0;background:none;padding:0;cursor:pointer;display:flex;flex-direction:column;gap:14px;text-align:left;font:inherit;color:#1b1b1b;opacity:${g.opacity};transition:opacity .25s ease`)}>
+            <button key=${g.vzor} className="hov-scale" onClick=${g.open} aria-label=${"vzor " + g.vzor} style=${css(`border:0;background:none;padding:0;cursor:pointer;display:flex;flex-direction:column;gap:14px;text-align:left;font:inherit;color:#1b1b1b;opacity:${g.opacity};transition:opacity .25s ease`)}>
               <div className="hov-img" style=${css(`width:100%;aspect-ratio:1.25;background-image:${g.bg};background-size:contain;background-repeat:no-repeat;background-position:center;filter:drop-shadow(5px 12px 10px rgba(40,32,20,.2));transition:transform .35s cubic-bezier(.2,.7,.2,1)`)}></div>
-              <div style=${css('display:flex;justify-content:space-between;gap:8px;font-size:14px')}><span style=${css('font-weight:500')}>vzor ${g.vzor}</span><span style=${css('color:#77776c')}>${g.tvar} · ${g.provedeni}</span></div>
             </button>`)}
         </div>
       </div>`;
@@ -392,7 +443,7 @@ class App extends React.Component {
       <footer style=${css(`zoom:${v.navZoom};opacity:${v.navOpacity};transform:translateY(${v.navShift}px);pointer-events:${v.navPE};transition:opacity .5s ease,transform .5s cubic-bezier(.2,.7,.2,1);position:fixed;bottom:0;left:0;right:0;height:72px;z-index:6;background:#f4f4ec;border-top:1px solid #e0e0d6;display:flex;justify-content:space-between;align-items:center;gap:16px;padding:0 24px`)}>
         <div style=${css('display:flex;border:1px solid #d6d6cc;border-radius:4px;overflow:hidden;width:max-content')}>
           ${seg(v.setCanvas, v.canvasBg, v.canvasColor, '✣', 'plocha')}
-          ${seg(v.setGrid, v.gridBg, v.gridColor, '▦', 'mřížka')}
+          ${seg(v.setGrid, v.gridBg, v.gridColor, '▦', 'katalog')}
         </div>
         <div style=${css(`position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);max-width:${v.filterMax};overflow-x:auto;scrollbar-width:thin;z-index:1`)}><div style=${css('display:flex;gap:8px;align-items:center;width:max-content;margin:0 auto')}>
           ${!v.filterOpen && html`
