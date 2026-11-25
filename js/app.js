@@ -2,7 +2,7 @@ import React from 'https://esm.sh/react@18.3.1';
 import { createRoot } from 'https://esm.sh/react-dom@18.3.1/client';
 import htm from 'https://esm.sh/htm@3.1.1';
 import {
-  ASSET_OK, probeAssets, COLORS, TVARY, PROVEDENI, ITEMS, ZOOMS, CISLA, glyphs, PISMA, PAINT, TARGETS, EMPTY_FORM,
+  ASSET_OK, probeAssets, COLORS, TVARY, PROVEDENI, ITEMS, ZOOMS, CISLA, glyphs, PISMA, PAINT, paintSw, TARGETS, EMPTY_FORM,
   PREFIXY, ROZVRZENI, OBLOUK, plateLayout, SHAPES, plateSvg, STEPS, FAKTA, mod, rng,
 } from './data.js';
 
@@ -58,8 +58,10 @@ class App extends React.Component {
     this.onResize = () => {
       const el = this.stageRef.current, vw = (el && el.clientWidth) || innerWidth || 1280, vh = (el && el.clientHeight) || innerHeight || 800;
       const k = viewScale(vw, vh), f = this._k ? k / this._k : 1; this._k = k;
-      // při změně měřítka přepočítat zoom kolem středu obrazovky
-      this.setState(s => f === 1 ? { vw, vh } : { vw, vh, z: s.z * f, ox: vw / 2 - (vw / 2 - s.ox) * f, oy: vh / 2 - (vh / 2 - s.oy) * f });
+      if (vw === this.state.vw && vh === this.state.vh && f === 1) return;
+      // po změně okna (dev panel, otočení telefonu…) vždy zpět na střed s hero
+      cancelAnimationFrame(this.raf); this.vx = this.vy = 0;
+      this.setState(s => ({ vw, vh, z: s.popDone ? ZOOMS[s.zi] * k : s.z * f }), () => this.setState(st => this.homeView(st.z) || null));
     };
     this._k = viewScale(innerWidth || 1280, innerHeight || 800); this.setState(s => ({ z: s.z * this._k }));
     this.onResize();
@@ -104,6 +106,13 @@ class App extends React.Component {
     removeEventListener('resize', this.onResize); if (this.ro) this.ro.disconnect();
     removeEventListener('pointermove', this.onMove); removeEventListener('pointerup', this.onUp); removeEventListener('keydown', this.onKey); if (this.onFonts) document.fonts.removeEventListener('loadingdone', this.onFonts);
     cancelAnimationFrame(this.raf); clearTimeout(this.ft); clearInterval(this.iv); clearTimeout(this.t1); clearTimeout(this.t2); clearTimeout(this.c1); clearTimeout(this.c2);
+  }
+
+  // posun tak, aby byl uprostřed hero (nebo střed vyfiltrovaného shluku)
+  homeView(z) {
+    const { vw, vh } = this.state, L = this.layout();
+    const cx = L.finite ? L.cx : L.hero && L.hero.x + L.hero.w / 2, cy = L.finite ? L.cy : L.hero && L.hero.y + L.hero.h / 2;
+    return cx == null ? null : { ox: vw / 2 - cx * z, oy: vh / 2 - cy * z };
   }
 
   glide() {
@@ -214,8 +223,10 @@ class App extends React.Component {
     clearTimeout(this.ft);
     this.setState({ fade: true });
     this.ft = setTimeout(() => this.setState(s => ({ f: fn(s.f), fade: false }), () => {
-      const L = this.layout();
-      if (L.finite) { cancelAnimationFrame(this.raf); this.setState(st => ({ ox: st.vw / 2 - L.cx * st.z, oy: st.vh / 2 - L.cy * st.z })); }
+      // po změně filtru zpět na střed (shluk / hero)
+      cancelAnimationFrame(this.raf);
+      const z = ZOOMS[this.state.zi] * this._k, t = this.homeView(z);
+      if (t) this.setState({ z, ...t });
     }), 200);
   }
 
@@ -315,8 +326,8 @@ class App extends React.Component {
       fCisla: CISLA.map(c => ({ ...c, glyphs: glyphs(txt, c.id, 30, c.ff), pick: pickF('pismoC', c.id), ...selB(c.id === cS.id) })),
       fPisma: PISMA.map(c => ({ ...c, hasImg: !!ASSET_OK['P:' + c.id], mask: 'url("assets/vzorniky/pisma/' + c.id + '.png") left center/contain no-repeat', pick: pickF('pismoP', c.id), ...selB(c.id === pS.id) })),
       cTargets: TARGETS.map(([k, l, fk]) => ({ key: k, label: l, color: PAINT[form[fk]], pick: () => this.setState({ cTarget: k }), bg: k === tgt[0] ? '#fbfbf6' : 'transparent', sh: k === tgt[0] ? '0 1px 2px rgba(0,0,0,.1)' : 'none' })),
-      cTargetLabel: tgt[1], cTargetName: form[tgt[2]],
-      fPaint: Object.keys(PAINT).map(v => ({ label: v, color: PAINT[v], pick: pickF(tgt[2], v), ring: form[tgt[2]] === v ? '0 0 0 3px #f4f4ec, 0 0 0 4.5px #1b1b1b' : 'inset 0 0 0 1px rgba(0,0,0,.06)' })),
+      cTargetLabel: tgt[1], cTargetName: form[tgt[2]], cTargetSw: paintSw(form[tgt[2]]),
+      fPaint: Object.keys(PAINT).map(v => ({ label: v, color: paintSw(v), pick: pickF(tgt[2], v), ring: form[tgt[2]] === v ? '0 0 0 3px #f4f4ec, 0 0 0 4.5px #1b1b1b' : 'inset 0 0 0 1px rgba(0,0,0,.06)' })),
       fPrefix: PREFIXY.map(chipF('prefix', pre)), fRozvrzeni: ROZVRZENI.map(chipF('rozvrzeni', roz)), fOblouk: OBLOUK.map(chipF('oblouk', form.oblouk === 'do oblouku' ? 'po okraji' : form.oblouk || 'rovně')),
       showHorni: roz === 'nad i pod',
       plate: { ...sh, ...lay, preTxt: pre, bg: plateSvg(sh, pColO, plast), fg: PAINT[form.barvaC], sfg: PAINT[form.barvaN], text: txt,
@@ -358,7 +369,7 @@ class App extends React.Component {
       openFilter: () => this.setState({ filterOpen: true, menuOpen: false }),
       closeFilter: () => this.setState({ filterOpen: false }),
       sections: [mk('barva', 'barva', Object.keys(COLORS), true), mk('tvar', 'tvar', TVARY, false), mk('provedeni', 'provedení', PROVEDENI, false)],
-      clearFilters: () => { this.applyFilter(() => ({ barva: [], tvar: [], provedeni: [] })); this.setState({ zi: 1 }); this.animate({ z: ZOOMS[1] * this._k, ox: 0, oy: 0, center: true }); },
+      clearFilters: () => { this.setState({ zi: 1 }); this.applyFilter(() => ({ barva: [], tvar: [], provedeni: [] })); },
       activeChips, hasActive: activeChips.length > 0, activeCount: activeChips.length,
       sel: sel ? { ...sel, bg: `url("${sel.src}")` } : null,
       close: () => this.setState({ sel: null }),
@@ -704,7 +715,7 @@ class App extends React.Component {
               <div style=${css('display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px;max-width:400px')}>
                 ${v.fPaint.map(o => html`<button key=${o.label} onClick=${o.pick} title=${o.label} style=${css(`aspect-ratio:1;border:0;padding:0;border-radius:4px;cursor:pointer;background:${o.color};box-shadow:${o.ring}`)}></button>`)}
               </div>
-              <span style=${css('font-size:14px;color:#1b1b1b')}>${v.cTargetLabel}: ${v.cTargetName}</span>
+              <div style=${css('display:flex;align-items:center;gap:12px')}><span style=${css(`width:72px;height:44px;flex:none;border-radius:4px;background:${v.cTargetSw}`)}></span><span style=${css('font-size:14px;color:#1b1b1b;line-height:1.4')}>${v.cTargetLabel}: ${v.cTargetName}<br /><span style=${css('color:#77776c')}>vzorky jsou fotky skutečných barev</span></span></div>
             </div>
             <div style=${css('display:flex;flex-direction:column;gap:10px')}>${label('tvar')}${chips(v.fTvary)}</div>
             <div style=${css('display:flex;flex-direction:column;gap:10px')}>${label('provedení')}${chips(v.fProvedeni)}</div>`}

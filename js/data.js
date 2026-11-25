@@ -34,6 +34,10 @@ const PISMA = [
 const PAINT = { 'žlutá světlá':'#ecd36a', 'žlutá tmavá':'#e6a923', 'oranžová':'#e98a3c', 'červená':'#d8262b', 'vínová':'#a3283a', 'růžová tmavá':'#d76a73', 'cihlová':'#c06e66', 'lososová':'#efb1a4',
   'modrá světlá':'#6f9ad8', 'modrá střední':'#5a6eb6', 'modrá tmavá':'#1f3f7a', 'modrá tyrkys':'#2fa6cb', 'zeleno modrá':'#1f8a94', 'zelená akvarel':'#3f6236', 'zelená tmavá':'#24432e', 'zelená střední':'#4f6446',
   'šedá':'#50555c', 'černá':'#26272a', 'hnědo černá':'#3a2a24', 'hnědá tmavá':'#4e2f1f', 'hnědá světlá':'#c47a3a', 'béžová':'#d8b17a', 'fialová':'#c79bc6', 'zelená světlá':'#a6b63c' };
+// reálné vzorky barev — výřezy z fotky vzorníku (assets/vzorniky/barvy.jpg, 550×293), pořadí = PAINT
+const SW_X = [[32, 104, 171, 243, 310, 381, 453, 518], [33, 104, 171, 241, 312, 384, 455, 521], [35, 104, 176, 240, 313, 382, 456, 522]], SW_Y = [58, 155, 250], SW = 32;
+const paintSw = name => { const i = Object.keys(PAINT).indexOf(name), r = Math.floor(i / 8), cx = SW_X[r][i % 8], cy = SW_Y[r];
+  return PAINT[name] + ' url("assets/vzorniky/barvy.jpg") ' + ((cx - SW / 2) / (550 - SW) * 100).toFixed(2) + '% ' + ((cy - SW / 2) / (293 - SW) * 100).toFixed(2) + '% / ' + (550 / SW * 100).toFixed(1) + '% ' + (293 / SW * 100).toFixed(1) + '% no-repeat'; };
 const TARGETS = [['cislo', 'číslo', 'barvaC'], ['napis', 'nápis', 'barvaN'], ['okraj', 'okraj', 'barvaO']];
 const EMPTY_FORM = { cislo: '', ulice: '', barva: 'modrá', tvar: 'ovál', provedeni: 'plochý', jmeno: '', email: '', pozn: '', vzor: null, src: null, mode: 'vzor', pismoC: 'C1', pismoP: 'P15', barvaC: 'modrá tmavá', barvaN: 'modrá tmavá', barvaO: 'modrá tmavá', prefix: 'bez', rozvrzeni: 'nápis pod', oblouk: 'rovně', horni: '', velC: 100, velN: 100, rozestup: 100, posun: 0 };
 const PREFIXY = ['bez', 'č.p.', 'Čís.', '№', 'ev.č.', 'číslo'], ROZVRZENI = ['jen číslo', 'nápis pod', 'nápis nad', 'nad i pod'], OBLOUK = ['rovně', 'mírně', 'po okraji'];
@@ -141,4 +145,4 @@ const FAKTA = [
 const mod = (a, n) => ((a % n) + n) % n;
 const rng = seed => () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
 
-export { ASSET_OK, probeAssets, DATA, COLORS, TVARY, PROVEDENI, ITEMS, ZOOMS, CISLA, GLYPH, glyphs, PISMA, PAINT, TARGETS, EMPTY_FORM, PREFIXY, ROZVRZENI, OBLOUK, arcText, plateLayout, SHAPES, plateSvg, STEPS, FAKTA, mod, rng };
+export { ASSET_OK, probeAssets, DATA, COLORS, TVARY, PROVEDENI, ITEMS, ZOOMS, CISLA, GLYPH, glyphs, PISMA, PAINT, paintSw, TARGETS, EMPTY_FORM, PREFIXY, ROZVRZENI, OBLOUK, arcText, plateLayout, SHAPES, plateSvg, STEPS, FAKTA, mod, rng };
