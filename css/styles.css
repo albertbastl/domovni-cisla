@@ -1,4 +1,4 @@
-html,body{margin:0;height:100%;overflow:hidden;background:#f4f4ec;color:#1b1b1b;font-family:"Instrument Sans","Helvetica Neue",Helvetica,sans-serif;-webkit-font-smoothing:antialiased}
+html,body{margin:0;height:100%;overflow:hidden;background:#f4f4ec;color:#1b1b1b;font-family:"Instrument Sans","Helvetica Neue",Helvetica,sans-serif;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
 a{color:#1b1b1b;text-decoration:none}
 a:hover{opacity:.6}
 *{box-sizing:border-box}

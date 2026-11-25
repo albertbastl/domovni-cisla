@@ -7,7 +7,11 @@ import {
 } from './data.js';
 
 const html = htm.bind(React.createElement);
-const HERO_W = 500, HERO_H = 290; // world units
+const HERO_PAD = 48; // world units, mezera mezi textem hero a čísly
+// měřítko plochy úměrné oknu: na 1440×900 = 1, na každém monitoru stejný výřez
+const viewScale = (w, h) => Math.max(0.6, Math.min(3, Math.min(w / 1440, h / 900)));
+// dotykové zařízení (bez myši) → jiný text nápovědy
+const TOUCH = typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
 
 // "a:b;c:d" → { a: 'b', c: 'd' } (keeps the design's inline CSS readable)
 const cssCache = new Map();
@@ -29,9 +33,21 @@ const css = s => {
 };
 
 class App extends React.Component {
-  state = { ox: 0, oy: 0, zi: 1, z: 0.68, vw: 1280, vh: 800, sel: null, hover: -1, f: { barva: [], tvar: [], provedeni: [] }, filterOpen: false, section: 'barva', menuOpen: false, fade: false, view: 'canvas', shown: 0, navOn: false, popDone: false, page: null, sent: false, err: false, form: { ...EMPTY_FORM }, cTarget: 'cislo', assets: 0 };
+  state = { ox: 0, oy: 0, zi: 1, z: 0.68, vw: 1280, vh: 800, sel: null, hover: -1, f: { barva: [], tvar: [], provedeni: [] }, filterOpen: false, section: 'barva', menuOpen: false, fade: false, view: 'canvas', shown: 0, heroW: 520, heroH: 290, navOn: false, popDone: false, page: null, sent: false, err: false, form: { ...EMPTY_FORM }, cTarget: 'cislo', assets: 0 };
   pageRef = React.createRef();
   stageRef = React.createRef();
+  heroRef = React.createRef();
+
+  // skutečná velikost textu hero (závisí na fontu) → podle ní se odsouvají čísla
+  measureHero() {
+    const el = this.heroRef.current;
+    if (!el) return;
+    // šířka = nejširší potomek (vč. přetečení), ne jen box — Safari počítá max-content flexu jinak
+    const w = Math.ceil(Math.max(el.offsetWidth, ...[...el.children].map(c => Math.max(c.offsetWidth, c.scrollWidth)))), h = Math.ceil(Math.max(el.offsetHeight, el.scrollHeight));
+    if (w && h && (Math.abs(w - this.state.heroW) > 1 || Math.abs(h - this.state.heroH) > 1)) this.setState({ heroW: w, heroH: h });
+  }
+
+  componentDidUpdate() { this.measureHero(); }
 
   go(page, extra) { if (this.pageRef.current) this.pageRef.current.scrollTop = 0; this.setState({ page, sel: null, menuOpen: false, ...(extra || {}) }); }
 
@@ -39,7 +55,13 @@ class App extends React.Component {
     probeAssets(() => this.setState(s => ({ assets: s.assets + 1 })));
     // náhled měří šířky textu canvasem → po načtení webfontů přepočítat
     if (document.fonts) { this.onFonts = () => this.setState(s => ({ assets: s.assets + 1 })); document.fonts.addEventListener('loadingdone', this.onFonts); }
-    this.onResize = () => { const el = this.stageRef.current; this.setState({ vw: (el && el.clientWidth) || innerWidth || 1280, vh: (el && el.clientHeight) || innerHeight || 800 }); };
+    this.onResize = () => {
+      const el = this.stageRef.current, vw = (el && el.clientWidth) || innerWidth || 1280, vh = (el && el.clientHeight) || innerHeight || 800;
+      const k = viewScale(vw, vh), f = this._k ? k / this._k : 1; this._k = k;
+      // při změně měřítka přepočítat zoom kolem středu obrazovky
+      this.setState(s => f === 1 ? { vw, vh } : { vw, vh, z: s.z * f, ox: vw / 2 - (vw / 2 - s.ox) * f, oy: vh / 2 - (vh / 2 - s.oy) * f });
+    };
+    this._k = viewScale(innerWidth || 1280, innerHeight || 800); this.setState(s => ({ z: s.z * this._k }));
     this.onResize();
     this.center = () => {
       if (this.drag || this.moved) return;
@@ -73,7 +95,7 @@ class App extends React.Component {
     // intro: tiles pop in, then zoom to default level and reveal footer
     this.iv = setInterval(() => {
       const n = this.visCount || 0;
-      if (n && this.state.shown >= n) { clearInterval(this.iv); this.t1 = setTimeout(() => { this.setState({ popDone: true }); this.animate({ z: ZOOMS[1] }); this.t2 = setTimeout(() => this.setState({ navOn: true }), 600); }, 350); return; }
+      if (n && this.state.shown >= n) { clearInterval(this.iv); this.t1 = setTimeout(() => { this.setState({ popDone: true }); this.animate({ z: ZOOMS[1] * this._k }); this.t2 = setTimeout(() => this.setState({ navOn: true }), 600); }, 350); return; }
       this.setState(s => ({ shown: s.shown + 3 }));
     }, 30);
   }
@@ -114,7 +136,7 @@ class App extends React.Component {
   setZoom(zi) {
     zi = Math.max(0, Math.min(2, zi));
     if (zi === this.state.zi) return;
-    this.setState({ zi }); this.animate({ z: ZOOMS[zi] });
+    this.setState({ zi }); this.animate({ z: ZOOMS[zi] * this._k });
   }
 
   filtered() {
@@ -124,9 +146,10 @@ class App extends React.Component {
 
   layout() {
     const { vw, vh, f } = this.state;
-    const key = vw + 'x' + vh + JSON.stringify(f);
+    const { heroW: HERO_W, heroH: HERO_H } = this.state;
+    const key = vw + 'x' + vh + JSON.stringify(f) + HERO_W + 'x' + HERO_H;
     if (this._lk === key) return this._l;
-    const items = this.filtered(), r = rng(11), S = 320, zmin = ZOOMS[0];
+    const items = this.filtered(), r = rng(11), S = 320, zmin = ZOOMS[0] * (this._k || 1);
     const NC = Math.max(8, Math.ceil(vw / (S * zmin)) + 2);
     const order = [];
     if (items.length) { const a = items.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } order.push(...a); }
@@ -155,11 +178,17 @@ class App extends React.Component {
     let hero = null;
     const mid = slots.find(q => q.item.src.endsWith('/n32.webp')) || slots[Math.floor(slots.length / 2)];
     if (mid) {
-      const hx = mid.x + mid.w / 2 - HERO_W / 2, hy = mid.y + mid.h / 2 - HERO_H / 2, pad = 40;
+      const hx = mid.x + mid.w / 2 - HERO_W / 2, hy = mid.y + mid.h / 2 - HERO_H / 2, pad = HERO_PAD;
       hero = { x: hx, y: hy, w: HERO_W, h: HERO_H };
       // čísla, která by do hero zasahovala, odsune od středu těsně k jeho okraji
       const mx = hx + HERO_W / 2, my = hy + HERO_H / 2;
       // pokud by odsunuté číslo narazilo do souseda, zmenší se (min. 60 %), jinak se vynechá
+      // plocha se opakuje (perioda W×H) → každé číslo posunout do kopie nejbližší hero, aby se kontrolovaly i kolize přes šev
+      const PW = NC * S, PH = NR * R;
+      for (let i = 0; i < slots.length; i++) {
+        const q = slots[i], ddx = q.x + q.w / 2 - mx, ddy = q.y + q.h / 2 - my;
+        slots[i] = { ...q, x: q.x - Math.round(ddx / PW) * PW, y: q.y - Math.round(ddy / PH) * PH };
+      }
       const hit = (q, g) => q.x < hx + HERO_W + g && q.x + q.w > hx - g && q.y < hy + HERO_H + g && q.y + q.h > hy - g;
       const touch = (a, b, g) => a.x < b.x + b.w + g && a.x + a.w > b.x - g && a.y < b.y + b.h + g && a.y + a.h > b.y - g;
       const moved = [], keep = slots.filter(q => !hit(q, pad));
@@ -214,7 +243,7 @@ class App extends React.Component {
     this.visCount = tiles.length;
     tiles.forEach(t => { const on = this.state.popDone || ord.indexOf(t._i) < shown; t.opacity = on ? t.opacity : 0; t.pop = on ? 1 : 0.5; });
     const navOn = this.state.navOn;
-    const narrow = vw < 900;
+    const narrow = vw < 900, phone = vw < 600, heroBig = vw < 1000;
     const navZoom = vw < 700 ? 1 : Math.min(2.4, Math.max(1.2, vw / 1500));
     const activeChips = [
       ...f.barva.map(v => ({ label: v, color: COLORS[v], remove: () => this.toggleOpt('barva', v) })),
@@ -256,7 +285,7 @@ class App extends React.Component {
     const SL_DEF = { velC: 100, velN: 100, rozestup: 100, posun: 0 }, slider = (k, label, lo, hi, step, fmt) => { const val = form[k] === undefined || form[k] === '' ? SL_DEF[k] : +form[k]; return { key: k, label, lo, hi, step, val, txt: fmt(val), on: setF(k) }; };
     const pct = v => v + ' %';
     return {
-      hasPage: !!page, pageKicker: kickers[page] || '', pageZoom: navZoom > 1 ? Math.max(1, navZoom * 0.8) : 1,
+      phone, heroBig, touch: TOUCH, hasPage: !!page, pageKicker: kickers[page] || '', pageZoom: navZoom > 1 ? Math.max(1, navZoom * 0.8) : 1,
       isOmne: page === 'omne', isCisla: page === 'cisla', isJak: page === 'jak', isKontakt: page === 'kontakt', isObjednat: page === 'objednat',
       lineOmne: page === 'omne' ? '#1b1b1b' : 'transparent', lineCisla: page === 'cisla' ? '#1b1b1b' : 'transparent', lineJak: page === 'jak' ? '#1b1b1b' : 'transparent', lineKontakt: page === 'kontakt' ? '#1b1b1b' : 'transparent',
       goHome: e => { if (e) e.preventDefault(); this.setState({ page: null, sel: null, menuOpen: false }); },
@@ -316,9 +345,9 @@ class App extends React.Component {
       wide: wideNow,
       hero: hero && { transform: `translate3d(${mod(hero.x * z + ox + hero.w * z, Wz) - hero.w * z}px,${mod(hero.y * z + oy + hero.h * z, Hz) - hero.h * z}px,0) scale(${z})`, on: this.state.popDone && !fade },
       heroGrid: () => { if (!this.moved) this.setState({ view: 'grid' }); },
-      isGrid: this.state.view === 'grid', showZoom: !filterOpen, filterMax: (Math.min(vw, innerWidth || vw) / navZoom - (wideNow ? 500 : 230)) + 'px', navZoom, headerH: 68 * navZoom, footerH: 72 * navZoom,
+      isGrid: this.state.view === 'grid', showZoom: !filterOpen, filterMax: (Math.min(vw, innerWidth || vw) / navZoom - (wideNow ? 500 : phone && filterOpen ? 24 : phone ? 200 : 230)) + 'px', showSeg: !(phone && filterOpen), navZoom, headerH: 68 * navZoom, footerH: 72 * navZoom,
       hintText: this.state.view === 'grid' ? '↕ scrollujte a prohlížejte' : '↔ táhněte a prohlížejte',
-      gridCols: 'repeat(auto-fill,minmax(' + [130, 210, 340][zi] + 'px,1fr))', gridGap: ['36px 20px', '56px 32px', '72px 48px'][zi],
+      gridCols: 'repeat(auto-fill,minmax(' + [130, 210, 340][zi] * (this._k || 1) + 'px,1fr))', gridGap: [[36, 20], [56, 32], [72, 48]][zi].map(g => g * (this._k || 1) + 'px').join(' '), gridMax: 1500 * (this._k || 1) / (navZoom > 1 ? Math.max(1, navZoom * 0.8) : 1),
       setCanvas: () => this.setState({ view: 'canvas' }), setGrid: () => this.setState({ view: 'grid' }),
       canvasBg: this.state.view === 'canvas' ? '#1b1b1b' : '#f4f4ec', canvasColor: this.state.view === 'canvas' ? '#fff' : '#1b1b1b',
       gridBg: this.state.view === 'grid' ? '#1b1b1b' : '#f4f4ec', gridColor: this.state.view === 'grid' ? '#fff' : '#1b1b1b',
@@ -329,7 +358,7 @@ class App extends React.Component {
       openFilter: () => this.setState({ filterOpen: true, menuOpen: false }),
       closeFilter: () => this.setState({ filterOpen: false }),
       sections: [mk('barva', 'barva', Object.keys(COLORS), true), mk('tvar', 'tvar', TVARY, false), mk('provedeni', 'provedení', PROVEDENI, false)],
-      clearFilters: () => { this.applyFilter(() => ({ barva: [], tvar: [], provedeni: [] })); this.setState({ zi: 1 }); this.animate({ z: ZOOMS[1], ox: 0, oy: 0, center: true }); },
+      clearFilters: () => { this.applyFilter(() => ({ barva: [], tvar: [], provedeni: [] })); this.setState({ zi: 1 }); this.animate({ z: ZOOMS[1] * this._k, ox: 0, oy: 0, center: true }); },
       activeChips, hasActive: activeChips.length > 0, activeCount: activeChips.length,
       sel: sel ? { ...sel, bg: `url("${sel.src}")` } : null,
       close: () => this.setState({ sel: null }),
@@ -368,19 +397,19 @@ class App extends React.Component {
     const navLink = (onClick, line, label) => html`<a href="#" onClick=${onClick} style=${css(`padding:4px 0;border-bottom:1.5px solid ${line}`)}>${label}</a>`;
     const menuLink = (onClick, label, last) => html`<a href="#" onClick=${onClick} style=${css(`font-size:28px;letter-spacing:-.03em;padding:12px 0;${last ? '' : 'border-bottom:1px solid #e0e0d6'}`)}>${label}</a>`;
     return html`
-      <header style=${css(`zoom:${v.navZoom};position:fixed;top:0;left:0;right:0;height:68px;z-index:6;background:#f4f4ec;border-bottom:1px solid #e0e0d6;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:24px;padding:0 24px`)}>
-        <a href="#" onClick=${v.goHome} style=${css('font-size:24px;font-weight:600;letter-spacing:-.04em;line-height:1;white-space:nowrap;justify-self:start')}>domovní čísla</a>
-        <nav style=${css('display:flex;justify-content:flex-end;align-items:center;gap:24px;font-size:15px;grid-column:3;white-space:nowrap;min-width:0')}>
+      <header style=${css(`zoom:${v.navZoom};position:fixed;top:0;left:0;right:0;height:68px;z-index:6;background:#f4f4ec;border-bottom:1px solid #e0e0d6;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:${v.phone ? 8 : 24}px;padding:0 ${v.phone ? 14 : 24}px`)}>
+        <a href="#" onClick=${v.goHome} style=${css(`font-size:${v.phone ? 20 : 24}px;font-weight:600;letter-spacing:-.04em;line-height:1;white-space:nowrap;justify-self:start`)}>domovní čísla</a>
+        <nav style=${css(`display:flex;justify-content:flex-end;align-items:center;gap:${v.phone ? 10 : 24}px;font-size:15px;grid-column:3;white-space:nowrap;min-width:0`)}>
           ${v.wide && navLink(v.goOmne, v.lineOmne, 'o mně')}
           ${v.wide && navLink(v.goCisla, v.lineCisla, 'o číslech')}
           ${v.wide && navLink(v.goJak, v.lineJak, 'jak objednat')}
           ${v.wide && navLink(v.goKontakt, v.lineKontakt, 'kontakt')}
           ${v.notWide && html`<button onClick=${v.toggleMenu} style=${css('height:40px;display:flex;align-items:center;gap:8px;padding:0 4px;border:0;background:none;font-size:15px;color:#1b1b1b;cursor:pointer')}><span>${v.menuLabel}</span></button>`}
-          <a href="#" onClick=${v.goObjednat} style=${css('height:40px;display:flex;align-items:center;padding:0 16px;border-radius:4px;background:#1b1b1b;color:#fff;white-space:nowrap')}>objednat číslo</a>
+          <a href="#" onClick=${v.goObjednat} style=${css(`height:40px;display:flex;align-items:center;padding:0 ${v.phone ? 12 : 16}px;border-radius:4px;background:#1b1b1b;color:#fff;white-space:nowrap`)}>${v.phone ? 'objednat' : 'objednat číslo'}</a>
         </nav>
       </header>
       ${v.menuOpen && html`
-        <div style=${css(`zoom:${v.navZoom};position:fixed;top:68px;left:0;right:0;z-index:9;background:#f4f4ec;border-bottom:1px solid #e0e0d6;display:flex;flex-direction:column;padding:8px 24px 20px`)}>
+        <div style=${css(`zoom:${v.navZoom};position:fixed;top:68px;left:0;right:0;z-index:9;background:#f4f4ec;border-bottom:1px solid #e0e0d6;display:flex;flex-direction:column;padding:8px ${v.phone ? 14 : 24}px 20px`)}>
           ${menuLink(v.goOmne, 'o mně')}
           ${menuLink(v.goCisla, 'o číslech')}
           ${menuLink(v.goJak, 'jak objednat')}
@@ -389,19 +418,19 @@ class App extends React.Component {
   }
 
   renderHero(v) {
-    const h = v.hero;
+    const h = v.hero, ph = v.heroBig, col = v.phone;
     return html`
-      <div style=${{ position: 'absolute', left: 0, top: 0, width: HERO_W + 'px', height: HERO_H + 'px', transform: h.transform, transformOrigin: '0 0', pointerEvents: 'none' }}>
-        <div style=${css(`width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;opacity:${h.on ? 1 : 0};transform:translateY(${h.on ? 0 : 20}px);transition:opacity .6s ease,transform .6s cubic-bezier(.2,.7,.2,1)`)}>
-          <h1 style=${css('margin:0;font-size:52px;font-weight:600;letter-spacing:-.04em;line-height:1.02;color:#1b1b1b')}>Vaše adresa,<br />namalovaná štětcem.</h1>
-          <p style=${css('margin:0;font-size:19px;line-height:1.5;color:#55554b;max-width:470px')}>Keramická domovní čísla maluji už dlouhá léta ručně a s láskou, podle opravdových starých vzorů. Vyberte si z katalogu, nebo si nechte namalovat vlastní.</p>
-          <div style=${css('display:flex;align-items:center;gap:12px;margin-top:6px;font-size:16px;color:#1b1b1b;justify-content:center;white-space:nowrap')}>
-            <span style=${css('display:flex;align-items:center;gap:22px;padding-left:10px')}>
-              <span className="hero-mouse"><span></span></span>
-              <span>táhněte myší a prohlížejte</span>
+      <div style=${{ position: 'absolute', left: 0, top: 0, width: this.state.heroW + 'px', height: this.state.heroH + 'px', transform: h.transform, transformOrigin: '0 0', pointerEvents: 'none' }}>
+        <div ref=${this.heroRef} style=${css(`position:absolute;left:0;top:0;width:max-content;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;opacity:${h.on ? 1 : 0};transform:translateY(${h.on ? 0 : 20}px);transition:opacity .6s ease,transform .6s cubic-bezier(.2,.7,.2,1)`)}>
+          <h1 style=${css(`margin:0;font-size:${ph ? 60 : 52}px;font-weight:600;letter-spacing:-.04em;line-height:1.02;color:#1b1b1b`)}>Vaše adresa,<br />namalovaná štětcem.</h1>
+          <p style=${css(`margin:0;font-size:${ph ? 27 : 19}px;line-height:1.45;color:#55554b;max-width:${ph ? 540 : 470}px`)}>Keramická domovní čísla maluji už dlouhá léta ručně a s láskou, podle opravdových starých vzorů. Vyberte si z katalogu, nebo si nechte namalovat vlastní.</p>
+          <div style=${css(`display:flex;flex-direction:${col ? 'column' : 'row'};align-items:center;gap:${col ? 16 : 12}px;margin-top:6px;font-size:${ph ? 26 : 16}px;color:#1b1b1b;justify-content:center;white-space:nowrap`)}>
+            <span style=${css(`display:flex;align-items:center;gap:22px;padding-left:${v.touch ? 0 : 10}px`)}>
+              ${!v.touch && html`<span className="hero-mouse"><span></span></span>`}
+              <span>${v.touch ? '↔ táhněte prstem a prohlížejte' : 'táhněte myší a prohlížejte'}</span>
             </span>
             <span style=${css('color:#9a9a8f')}>nebo</span>
-            <button onClick=${v.heroGrid} style=${css('pointer-events:auto;height:38px;display:flex;align-items:center;gap:6px;padding:0 14px;border:1px solid #c9c9bf;border-radius:4px;background:#f4f4ec;font-size:16px;color:#1b1b1b;cursor:pointer')}><span style=${css('font-size:13px')}>▦</span>prohlédněte katalog</button>
+            <button onClick=${v.heroGrid} style=${css(`pointer-events:auto;height:${ph ? 64 : 38}px;display:flex;align-items:center;gap:${ph ? 10 : 6}px;padding:0 ${ph ? 24 : 14}px;border:1px solid #c9c9bf;border-radius:${ph ? 6 : 4}px;background:#f4f4ec;font-size:${ph ? 26 : 16}px;color:#1b1b1b;cursor:pointer`)}><span style=${css(`font-size:${ph ? 21 : 13}px`)}>▦</span>prohlédněte katalog</button>
           </div>
         </div>
       </div>`;
@@ -409,12 +438,12 @@ class App extends React.Component {
 
   renderGrid(v) {
     return html`
-      <div style=${css(`position:fixed;top:${v.headerH}px;bottom:${v.footerH}px;left:0;right:0;overflow-y:auto;overscroll-behavior:contain;background:#f4f4ec;z-index:4;padding:48px 32px 120px`)}>
-        <div style=${css(`zoom:${v.pageZoom};max-width:1500px;margin:0 auto 56px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:16px 48px`)}>
+      <div style=${css(`position:fixed;top:${v.headerH}px;bottom:${v.footerH}px;left:0;right:0;overflow-y:auto;overscroll-behavior:contain;background:#f4f4ec;z-index:4;padding:${v.phone ? '28px 16px 96px' : '48px 32px 120px'}`)}>
+        <div style=${css(`zoom:${v.pageZoom};max-width:${v.gridMax}px;margin:0 auto ${v.phone ? 32 : 56}px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:16px 48px`)}>
           <h1 style=${css(H1 + ';text-wrap:balance')}>Katalog vzorů</h1>
           <p style=${css('margin:0;font-size:17px;line-height:1.5;color:#55554b;max-width:420px')}>${v.gridItems.length} ${v.gridItems.length === 1 ? 'vzor' : v.gridItems.length < 5 && v.gridItems.length ? 'vzory' : 'vzorů'} k inspiraci. Klikněte na cedulku pro detail — každou namaluji i v jiné barvě nebo s vaším číslem.</p>
         </div>
-        <div style=${css(`display:grid;grid-template-columns:${v.gridCols};gap:${v.gridGap};max-width:1500px;margin:0 auto`)}>
+        <div style=${css(`display:grid;grid-template-columns:${v.gridCols};gap:${v.gridGap};max-width:${1500 * (this._k || 1)}px;margin:0 auto`)}>
           ${v.gridItems.map(g => html`
             <button key=${g.vzor} className="hov-scale" onClick=${g.open} aria-label=${"vzor " + g.vzor} style=${css(`border:0;background:none;padding:0;cursor:pointer;display:flex;flex-direction:column;gap:14px;text-align:left;font:inherit;color:#1b1b1b;opacity:${g.opacity};transition:opacity .25s ease`)}>
               <div className="hov-img" style=${css(`width:100%;aspect-ratio:1.25;background-image:${g.bg};background-size:contain;background-repeat:no-repeat;background-position:center;filter:drop-shadow(5px 12px 10px rgba(40,32,20,.2));transition:transform .35s cubic-bezier(.2,.7,.2,1)`)}></div>
@@ -440,8 +469,8 @@ class App extends React.Component {
     const knob = left => html`<span style=${css('width:16px;height:1.5px;background:#1b1b1b;position:relative')}><span style=${css(`position:absolute;left:${left}px;top:-2.5px;width:6px;height:6px;border-radius:50%;background:#1b1b1b`)}></span></span>`;
     const round = (onClick, label, opacity) => html`<button onClick=${onClick} style=${css(`width:44px;height:44px;border-radius:50%;border:1px solid #c9c9bf;background:#f4f4ec;font-size:21px;color:#1b1b1b;cursor:pointer;opacity:${opacity}`)}>${label}</button>`;
     return html`
-      <footer style=${css(`zoom:${v.navZoom};opacity:${v.navOpacity};transform:translateY(${v.navShift}px);pointer-events:${v.navPE};transition:opacity .5s ease,transform .5s cubic-bezier(.2,.7,.2,1);position:fixed;bottom:0;left:0;right:0;height:72px;z-index:6;background:#f4f4ec;border-top:1px solid #e0e0d6;display:flex;justify-content:space-between;align-items:center;gap:16px;padding:0 24px`)}>
-        <div style=${css('display:flex;border:1px solid #d6d6cc;border-radius:4px;overflow:hidden;width:max-content')}>
+      <footer style=${css(`zoom:${v.navZoom};opacity:${v.navOpacity};transform:translateY(${v.navShift}px);pointer-events:${v.navPE};transition:opacity .5s ease,transform .5s cubic-bezier(.2,.7,.2,1);position:fixed;bottom:0;left:0;right:0;height:72px;z-index:6;background:#f4f4ec;border-top:1px solid #e0e0d6;display:flex;justify-content:space-between;align-items:center;gap:16px;padding:0 ${v.phone ? 12 : 24}px`)}>
+        <div style=${css(`display:${v.showSeg ? 'flex' : 'none'};border:1px solid #d6d6cc;border-radius:4px;overflow:hidden;width:max-content`)}>
           ${seg(v.setCanvas, v.canvasBg, v.canvasColor, '✣', 'plocha')}
           ${seg(v.setGrid, v.gridBg, v.gridColor, '▦', 'katalog')}
         </div>
@@ -478,7 +507,7 @@ class App extends React.Component {
   renderPage(v) {
     return html`
       <div ref=${this.pageRef} style=${css(`position:fixed;top:${v.headerH}px;bottom:0;left:0;right:0;overflow-y:auto;background:#f4f4ec;z-index:8`)}>
-        <div style=${css(`zoom:${v.pageZoom};max-width:1120px;margin:0 auto;padding:56px 28px 96px;display:flex;flex-direction:column;gap:48px`)}>
+        <div style=${css(`zoom:${v.pageZoom};max-width:1120px;margin:0 auto;padding:${v.phone ? '28px 16px 72px' : '56px 28px 96px'};display:flex;flex-direction:column;gap:${v.phone ? 32 : 48}px`)}>
           <div style=${css('display:flex;justify-content:space-between;align-items:center;gap:16px')}>
             <span style=${css('font-size:15px;color:#55554b')}>${v.pageKicker}</span>
             <button onClick=${v.goHome} style=${css('height:40px;display:flex;align-items:center;gap:8px;padding:0 14px;border:1px solid #d6d6cc;border-radius:4px;background:#f4f4ec;font-size:15px;color:#1b1b1b;cursor:pointer')}><span>←</span><span>zpět na čísla</span></button>
@@ -497,21 +526,21 @@ class App extends React.Component {
     return html`
       <div style=${css('display:flex;flex-direction:column;gap:48px')}>
         <img src="assets/portret.png" alt="Portrét u dveří s malovanou cedulkou" style=${css('width:100%;aspect-ratio:3/2;object-fit:cover;border-radius:4px;display:block;background:#ebeae0')} />
-        <div style=${css('display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px 56px;align-items:start')}>
+        <div style=${css('display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:24px 56px;align-items:start')}>
           <h1 style=${css(H1 + ';text-wrap:balance')}>Maluji čísla, která k domu patří.</h1>
           <div style=${css('display:flex;flex-direction:column;gap:24px;padding-top:8px')}>
             ${p('Každá cedulka vzniká ručně z keramické hlíny — tvaruji ji, maluji štětcem glazurami a vypaluji v peci. Inspiruji se tradičním malovaným písmem a ornamenty z fasád českých měst a vesnic.')}
             ${p('Barvu, tvar i ornament ladím s domem — s fasádou, okny nebo dveřmi. Výsledkem je kus, který vydrží počasí i roky.')}
           </div>
         </div>
-        <a href="https://www.fler.cz/magazin/db-keramika-strasne-nerada-delam-hrnky-2480" target="_blank" rel="noopener" style=${css('display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px 56px;align-items:start;padding-top:32px;border-top:1px solid #e0e0d6;color:#1b1b1b;text-decoration:none')}>
+        <a href="https://www.fler.cz/magazin/db-keramika-strasne-nerada-delam-hrnky-2480" target="_blank" rel="noopener" style=${css('display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:16px 56px;align-items:start;padding-top:32px;border-top:1px solid #e0e0d6;color:#1b1b1b;text-decoration:none')}>
           <span style=${css('font-size:15px;color:#77776c;padding-top:10px')}>napsali o mně</span>
           <span style=${css('display:flex;flex-direction:column;gap:14px')}>
             <span style=${css("font-family:'Instrument Serif',serif;font-style:italic;font-size:32px;line-height:1.2;letter-spacing:-.01em;text-wrap:balance;max-width:24ch")}>„Barevná či černobílá cedulka rozzáří každý vchod.“</span>
             <span style=${css('font-size:15px;color:#55554b')}>Fler MAG, červenec 2018 · <span style=${css('text-decoration:underline;text-underline-offset:3px')}>dB keramika: Strašně nerada dělám hrnky ↗</span></span>
           </span>
         </a>
-        <div style=${css('display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;padding-top:32px;border-top:1px solid #e0e0d6')}>
+        <div style=${css('display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(8px,3vw,24px);padding-top:32px;border-top:1px solid #e0e0d6')}>
           ${v.omneWorks.map(w => html`<button key=${w.key} onClick=${w.open} style=${css(`border:0;padding:0;background:none;cursor:pointer;aspect-ratio:1.3;background-image:${w.bg};background-size:contain;background-repeat:no-repeat;background-position:center;filter:drop-shadow(4px 10px 8px rgba(40,32,20,.2))`)}></button>`)}
         </div>
       </div>`;
@@ -521,14 +550,14 @@ class App extends React.Component {
     const p = t => html`<p style=${css('margin:0;font-size:18px;line-height:1.6;color:#3a3a33;max-width:46ch;text-wrap:pretty')}>${t}</p>`;
     return html`
       <div style=${css('display:flex;flex-direction:column;gap:48px')}>
-        <div style=${css('display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px 56px;align-items:start')}>
+        <div style=${css('display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:24px 56px;align-items:start')}>
           <h1 style=${css(H1 + ';text-wrap:balance')}>Keramika, která vydrží na fasádě.</h1>
           <div style=${css('display:flex;flex-direction:column;gap:24px;padding-top:8px')}>
             ${p('Maluji tradiční technikou pod glazuru, kde je vidět každý tah štětcem. Každá cedulka je originál — žádná přesná replika předlohy, ale kus namalovaný tak, jak ho v tu chvíli vnímám.')}
             ${p('Odstín malby i podkladu se může mírně lišit — to k ručně pálené keramice patří.')}
           </div>
         </div>
-        <div style=${css('display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));border-top:1px solid #1b1b1b')}>
+        <div style=${css('display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));border-top:1px solid #1b1b1b')}>
           ${FAKTA.map(([l, val, t]) => html`
             <div key=${l} style=${css('display:flex;flex-direction:column;gap:8px;padding:24px 24px 28px 0;border-bottom:1px solid #e0e0d6')}>
               <span style=${css('font-size:15px;color:#77776c')}>${l}</span>
@@ -544,7 +573,6 @@ class App extends React.Component {
   }
 
   renderJak(v) {
-    const badge = (n, c) => html`<span style=${css(`align-self:flex-start;display:flex;align-items:center;justify-content:center;width:52px;height:38px;border-radius:50%;background:#fbf7ea;border:3px solid ${c};box-shadow:inset 0 0 0 2px #fbf7ea,inset 0 0 0 3px ${c};font-family:'Instrument Serif',serif;font-style:italic;font-size:22px;color:#1b1b1b`)}>${n}</span>`;
     const pics = [
       html`<div style=${css('position:relative;aspect-ratio:4/3;border-radius:4px;background:#ebeae0;overflow:hidden')}>
         <img src="assets/cisla/n37.webp" alt="" style=${css('position:absolute;left:4%;top:30%;width:42%;transform:rotate(-12deg);filter:drop-shadow(0 6px 10px rgba(40,35,20,.18))')} />
@@ -564,15 +592,13 @@ class App extends React.Component {
         <img src="assets/cisla/n12.webp" alt="" style=${css('position:absolute;left:50%;top:50%;width:64%;transform:translate(-50%,-50%);filter:drop-shadow(4px 10px 8px rgba(50,35,15,.35))')} />
       </div>`,
     ];
-    const badgeColors = ['#3e5d9e', '#5e6d3d', '#b5552f', '#d9a63a'];
     return html`
       <div style=${css('display:flex;flex-direction:column;gap:48px')}>
         <h1 style=${css(H1 + ';max-width:14ch;text-wrap:balance')}>Od nápadu po cedulku na fasádě.</h1>
-        <div style=${css('display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));border-top:1px solid #1b1b1b')}>
+        <div style=${css('display:grid;grid-template-columns:repeat(auto-fit,minmax(min(230px,100%),1fr));border-top:1px solid #1b1b1b')}>
           ${v.steps.map((s, i) => html`
             <div key=${s.n} style=${css('display:flex;flex-direction:column;gap:14px;padding:24px 24px 32px 0;border-bottom:1px solid #e0e0d6')}>
               ${pics[i]}
-              ${badge(i + 1, badgeColors[i])}
               <h3 style=${css('margin:0;font-size:24px;font-weight:500;letter-spacing:-.03em')}>${s.title}</h3>
               <p style=${css('margin:0;font-size:16px;line-height:1.55;color:#3a3a33;text-wrap:pretty')}>${s.text}</p>
             </div>`)}
@@ -590,7 +616,7 @@ class App extends React.Component {
     return html`
       <div style=${css('display:flex;flex-direction:column;gap:48px')}>
         <h1 style=${css(H1 + ';max-width:14ch;text-wrap:balance')}>Napište mi, ráda poradím.</h1>
-        <div style=${css('display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));border-top:1px solid #1b1b1b')}>
+        <div style=${css('display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));border-top:1px solid #1b1b1b')}>
           ${cell('e-mail', html`<a href="mailto:ahoj@domovnicisla.cz" style=${css(big)}>ahoj@domovnicisla.cz</a>`)}
           ${cell('instagram', html`<a href="#" style=${css(big)}>@domovni.cisla</a>`)}
           ${cell('odpovídám', html`<span style=${css(big)}>do 3 pracovních dnů</span>`)}
@@ -623,7 +649,7 @@ class App extends React.Component {
       : html`<span key=${i} style=${{ flex: 'none', fontFamily: g.ff, fontWeight: g.fw, fontStyle: g.fst, fontSize: g.fs, lineHeight: g.lh, color }}>${g.ch}</span>`);
     const pf = `font-family:${plate.pff};font-weight:${plate.pfw};font-style:${plate.pfs}`;
     return html`
-      <div style=${css('display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:56px;align-items:start')}>
+      <div style=${css(`display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:${v.phone ? 32 : 56}px;align-items:start`)}>
         <div style=${css('display:flex;flex-direction:column;gap:28px')}>
           <h1 style=${css('margin:0;font-weight:500;font-size:clamp(40px,6vw,64px);letter-spacing:-.05em;line-height:.98')}>Vaše číslo</h1>
           <div style=${css('display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:6px;background:#e5e5dc')}>
@@ -639,7 +665,7 @@ class App extends React.Component {
             </div>` : html`
             <div style=${css('display:flex;flex-direction:column;gap:10px')}>
               <div style=${css('display:flex;justify-content:space-between;align-items:baseline;gap:12px')}>${label('vyberte vzor')}<a href="#" onClick=${v.goGrid} style=${css('font-size:14px;text-decoration:underline')}>celá galerie →</a></div>
-              <div style=${css('display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px;max-height:236px;overflow-y:auto;padding:2px')}>
+              <div style=${css('display:grid;grid-template-columns:repeat(auto-fill,minmax(min(84px,100%),1fr));gap:8px;max-height:236px;overflow-y:auto;padding:2px')}>
                 ${v.refPicks.map(r => html`<button key=${r.vzor} className="hov-border" onClick=${r.pick} title=${'vzor ' + r.vzor} style=${css('aspect-ratio:1.25;border:1px solid #e0e0d6;border-radius:4px;padding:6px;cursor:pointer;background:#fbfbf6')}><div style=${css(`width:100%;height:100%;background-image:${r.bg};background-size:contain;background-repeat:no-repeat;background-position:center`)}></div></button>`)}
               </div>
             </div>`)}
@@ -659,13 +685,13 @@ class App extends React.Component {
             </div>
             <div style=${css('display:flex;flex-direction:column;gap:10px')}>
               <div style=${css('display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap')}>${label('písmo čísla · vzor ' + v.cStyle.id)}${v.cStyle.note && html`<span style=${css('font-size:13px;color:#b5552f')}>${v.cStyle.note}</span>`}</div>
-              <div style=${css('display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:6px;max-height:256px;overflow-y:auto;padding:2px')}>
+              <div style=${css('display:grid;grid-template-columns:repeat(auto-fill,minmax(min(112px,100%),1fr));gap:6px;max-height:256px;overflow-y:auto;padding:2px')}>
                 ${v.fCisla.map(o => html`<button key=${o.id} onClick=${o.pick} style=${css(`height:78px;border:1px solid ${o.border};border-radius:4px;background:${o.bg};cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:6px 10px 10px;color:#1b1b1b;overflow:hidden;min-width:0`)}><span style=${css('font-size:11px;color:#77776c')}>${o.id}</span><span style=${css('display:flex;align-items:flex-end;gap:1px;height:32px;max-width:100%;overflow:hidden')}>${glyphRow(o.glyphs, '#1b1b1b')}</span></button>`)}
               </div>
             </div>
             <div style=${css('display:flex;flex-direction:column;gap:10px')}>
               <div style=${css('display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap')}>${label('písmo nápisu · vzor ' + v.pStyle.id)}<span style=${css('font-size:13px;color:#77776c')}>ulice, jméno domu</span></div>
-              <div style=${css('display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;max-height:232px;overflow-y:auto;padding:2px')}>
+              <div style=${css('display:grid;grid-template-columns:repeat(auto-fill,minmax(min(150px,100%),1fr));gap:6px;max-height:232px;overflow-y:auto;padding:2px')}>
                 ${v.fPisma.map(o => html`<button key=${o.id} onClick=${o.pick} style=${css(`height:64px;border:1px solid ${o.border};border-radius:4px;background:${o.bg};cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:6px 10px 8px;color:#1b1b1b;overflow:hidden;min-width:0`)}><span style=${css('font-size:11px;color:#77776c')}>${o.id}</span>${o.hasImg
                   ? html`<span style=${{ width: '100%', height: '30px', background: '#1b1b1b', WebkitMask: o.mask, mask: o.mask }}></span>`
                   : html`<span style=${{ fontFamily: o.ff, fontWeight: o.fw, fontStyle: o.fs, fontVariant: o.fv, letterSpacing: o.ls, fontSize: '22px', lineHeight: '30px', whiteSpace: 'nowrap' }}>${form.ulice.trim() || 'Lipová'}</span>`}</button>`)}
@@ -684,7 +710,7 @@ class App extends React.Component {
             <div style=${css('display:flex;flex-direction:column;gap:10px')}>${label('provedení')}${chips(v.fProvedeni)}</div>`}
 
           <label style=${css(field)}><span>vaše představa a poznámky</span><span style=${css('font-size:15px;color:#3a3a33;line-height:1.5;text-wrap:pretty')}>${v.noteHelp}</span><textarea value=${form.pozn} onChange=${v.onPozn} rows="5" placeholder=${v.notePh} style=${css('width:100%;padding:12px 14px;border:1px solid #d6d6cc;border-radius:4px;background:#fbfbf6;font:inherit;font-size:16px;line-height:1.5;color:#1b1b1b;outline:none;resize:vertical')}></textarea></label>
-          <div style=${css('display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;padding-top:12px;border-top:1px solid #e0e0d6')}>
+          <div style=${css('display:grid;grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr));gap:12px;padding-top:12px;border-top:1px solid #e0e0d6')}>
             <label style=${css(field)}><span>jméno</span>${input(form.jmeno, v.onJmeno, '#d6d6cc', { autoComplete: 'name' })}</label>
             <label style=${css(field)}><span>e-mail *</span>${input(form.email, v.onEmail, v.errEmail, { type: 'email', autoComplete: 'email' })}</label>
           </div>
@@ -695,7 +721,7 @@ class App extends React.Component {
           </div>
         </div>
 
-        <div style=${css('position:sticky;top:24px;display:flex;flex-direction:column;gap:16px;align-items:center;padding:48px 24px;border-radius:4px;background:#ebebe2')}>
+        <div style=${css(`position:sticky;top:24px;display:flex;flex-direction:column;gap:16px;align-items:center;padding:${v.phone ? '28px 16px' : '48px 24px'};border-radius:4px;background:#ebebe2`)}>
           ${v.isVlastni && html`
             <div style=${{ width: 'min(320px,100%)', aspectRatio: plate.aspect, borderRadius: plate.radius, clipPath: plate.clip, background: plate.bg, backgroundSize: '100% 100%', overflow: 'hidden', position: 'relative', containerType: 'inline-size', transition: 'aspect-ratio .35s cubic-bezier(.2,.7,.2,1)' }}>
               ${plate.arc.map((c, i) => html`<span key=${i} style=${css(`position:absolute;left:${c.l};top:${c.tp};transform:translate(-50%,-50%) rotate(${c.r});${pf};text-transform:${plate.ptt};font-variant:${plate.pfv};${plate.sink};font-size:${c.fs};line-height:1;white-space:pre;filter:${plate.tshadow}`)}>${c.ch}</span>`)}
@@ -720,12 +746,12 @@ class App extends React.Component {
   renderModal(v) {
     const s = v.sel;
     return html`
-      <div onClick=${v.close} style=${css('position:fixed;inset:0;background:rgba(244,244,236,.94);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:32px;z-index:10')}>
-        <div onClick=${v.stop} style=${css('display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:48px;align-items:center;max-width:960px;width:100%')}>
+      <div onClick=${v.close} style=${css(`position:fixed;inset:0;background:rgba(244,244,236,.94);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);display:flex;overflow-y:auto;overscroll-behavior:contain;padding:${v.phone ? 20 : 32}px;z-index:10`)}>
+        <div onClick=${v.stop} style=${css(`margin:auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:${v.phone ? 20 : 48}px;align-items:center;max-width:960px;width:100%`)}>
           <div style=${css(`aspect-ratio:1.2;background-image:${s.bg};background-size:contain;background-repeat:no-repeat;background-position:center;filter:drop-shadow(8px 18px 16px rgba(40,32,20,.25))`)}></div>
           <div style=${css('display:flex;flex-direction:column;gap:16px')}>
             <span style=${css('font-size:15px;color:#5c5c52')}>vzor ${s.vzor} · ${s.tvar} · ${s.provedeni}</span>
-            <h2 style=${css('margin:0;font-weight:500;font-size:56px;letter-spacing:-.045em;line-height:1')}>Číslo ${s.label}</h2>
+            <h2 style=${css('margin:0;font-weight:500;font-size:clamp(40px,11vw,56px);letter-spacing:-.045em;line-height:1')}>Číslo ${s.label}</h2>
             <p style=${css('margin:0;font-size:16px;line-height:1.55;color:#3a3a33;max-width:38ch;text-wrap:pretty')}>Každá cedulka je malovaná ručně štětcem. Číslo, ulici, barvu i ornament přizpůsobím vašemu domu.</p>
             <div style=${css('display:flex;gap:8px;margin-top:8px;flex-wrap:wrap')}>
               <a href="#" onClick=${v.orderLike} style=${css('height:46px;display:flex;align-items:center;padding:0 20px;border-radius:4px;background:#1b1b1b;color:#fff;font-size:16px')}>chci podobné</a>
